@@ -69,17 +69,170 @@ ALIASES = {
 }
 
 
-def load_env(path=".env"):
-    """Carrega o .env (se python-dotenv estiver instalado). Silencioso se faltar."""
+# nomes de variaveis que o robo entende (usado para achar erros de digitacao)
+KNOWN_ENV_NAMES = (
+    "APINEX_API_KEY", "APINEX_KEY", "TWITCH_OAUTH", "OPENAI_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY",
+)
+
+# chave -> {"file": nome do arquivo, "value": valor que estava la}
+# (preenchido pelo load_env; comparar o valor evita dizer que veio do .env
+#  quando na verdade a variavel ja existia no sistema)
+_ENV_SOURCES = {}
+
+
+def env_sources():
+    """Copia do registro 'de onde veio cada chave' (usado no --check)."""
+    return {key: info["file"] for key, info in _ENV_SOURCES.items()}
+
+
+def parse_env_file(path):
+    """Le um arquivo .env sem depender de nenhuma biblioteca.
+
+    Aceita comentarios (#), linhas em branco, "export CHAVE=valor",
+    valores entre aspas e espacos em volta do "=". Ignora linhas invalidas.
+    """
+    data = {}
+    try:
+        with open(path, encoding="utf-8-sig") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return data
+
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.lower().startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key:
+            data[key] = value
+    return data
+
+
+def mask_secret(value, keep_start=6, keep_end=4):
+    """Esconde o miolo de uma chave, deixando inicio/fim para conferencia."""
+    value = str(value or "")
+    if not value:
+        return "(vazia)"
+    if len(value) > keep_start + keep_end:
+        return f"{value[:keep_start]}...{value[-keep_end:]}"
+    if len(value) >= 4:
+        return f"{value[:2]}...{value[-2:]}"
+    return value[:1] + "*" * (len(value) - 1)
+
+
+def _project_dir():
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def load_env(path=".env", logger=None):
+    """Carrega as chaves do .env e devolve um relatorio do que encontrou.
+
+    - Procura o arquivo na pasta atual e na pasta do projeto (ai-vs-streamer-v5/).
+    - Usa python-dotenv se estiver instalado, mas tem leitor proprio: sem o
+      pacote instalado as chaves NAO ficam mais sendo ignoradas em silencio.
+    - Nunca sobrescreve variaveis que ja existem no sistema.
+    """
+    report = {
+        "path": None,
+        "found": False,
+        "keys": [],
+        "sources": {},
+        "warnings": [],
+        "dotenv": False,
+        "candidates": [],
+    }
+
+    candidates = []
+    if path:
+        candidates.append(path)
+        if not os.path.isabs(path):
+            # tambem procura na pasta do projeto e na pasta acima (raiz do repo),
+            # porque e comum criar o .env no lugar errado
+            candidates.append(os.path.join(_project_dir(), path))
+            candidates.append(os.path.join(os.path.dirname(_project_dir()), path))
+
+    checked = []
+    target = None
+    for candidate in candidates:
+        absolute = os.path.abspath(candidate)
+        if absolute in checked:
+            continue
+        checked.append(absolute)
+        if os.path.isfile(absolute):
+            target = absolute
+            break
+    report["candidates"] = checked
+    report["path"] = target
+
+    if not target:
+        report["warnings"].append(
+            "nao achei o arquivo .env (procurei em: " + ", ".join(checked) + ")")
+        for alt in (" .env.txt", ".env.TXT", "env.txt", ".env.example"):
+            alt_path = os.path.abspath(alt.strip())
+            if os.path.isfile(alt_path):
+                if alt.lower().endswith(".example"):
+                    report["warnings"].append(
+                        f"existe {os.path.basename(alt_path)} - copie ele para .env e preencha")
+                else:
+                    report["warnings"].append(
+                        f"achei {os.path.basename(alt_path)} - no Windows o Bloco de Notas "
+                        f"salva assim; renomeie para .env")
+                break
+        return report
+
+    # 1) leitor proprio primeiro: garante que as chaves entram mesmo sem o
+    #    python-dotenv e registra de onde cada uma veio
+    for key, value in parse_env_file(target).items():
+        report["keys"].append(key)
+        if key in os.environ and os.environ[key]:
+            # ja existia: se o valor e igual ao que este .env tem, a origem e o
+            # arquivo (o main carrega o .env antes do --check); senao e o sistema
+            conhecido = _ENV_SOURCES.get(key)
+            mesma_coisa = conhecido and conhecido.get("value") == os.environ[key]
+            report["sources"][key] = conhecido["file"] if mesma_coisa else "ambiente"
+            continue
+        os.environ[key] = value
+        _ENV_SOURCES[key] = {"file": os.path.basename(target), "value": value}
+        report["sources"][key] = os.path.basename(target)
+
+    # 2) python-dotenv, se existir, para formatos exoticos (nao sobrescreve nada)
     try:
         from dotenv import load_dotenv
+
+        load_dotenv(target, override=False)
+        report["dotenv"] = True
     except Exception:
-        return False
-    try:
-        load_dotenv(path if os.path.exists(path) else None, override=False)
-        return True
-    except Exception:
-        return False
+        report["dotenv"] = False
+
+    report["found"] = True
+    if report["keys"] and not report["dotenv"]:
+        report["warnings"].append(
+            "python-dotenv nao esta instalado (usei o leitor interno - funciona igual)")
+    placeholders = [key for key in report["keys"]
+                    if "coloque_sua" in os.environ.get(key, "").lower()]
+    for key in placeholders:
+        report["warnings"].append(f"{key} ainda esta com o valor de exemplo do .env.example")
+
+    # nome digitado errado (ex.: APINEX_API= em vez de APINEX_API_KEY)
+    import difflib
+
+    for key in report["keys"]:
+        if key in KNOWN_ENV_NAMES:
+            continue
+        parecida = difflib.get_close_matches(key, KNOWN_ENV_NAMES, n=1, cutoff=0.75)
+        if parecida:
+            report["warnings"].append(
+                f"a chave {key} no .env nao e conhecida - quis dizer {parecida[0]}?")
+    return report
 
 
 def normalize_name(name):
@@ -175,8 +328,12 @@ __all__ = [
     "coerce_text",
     "default_error",
     "extract_results",
+    "KNOWN_ENV_NAMES",
+    "env_sources",
     "load_env",
+    "mask_secret",
     "normalize_name",
+    "parse_env_file",
     "provider_config",
     "provider_info",
     "resolve_api_key",

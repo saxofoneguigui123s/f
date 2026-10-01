@@ -45,7 +45,14 @@ from tts_engine import TTSEngine                         # noqa: E402
 from sound_effects import SoundEffects                   # noqa: E402
 from offline_mode import OfflineMode                     # noqa: E402
 from streamer_bot import StreamerBotBridge               # noqa: E402
-from providers import PROVIDER_NAMES, build_provider, load_env, provider_info  # noqa: E402
+from providers import (  # noqa: E402
+    PROVIDER_NAMES,
+    build_provider,
+    env_sources,
+    load_env,
+    mask_secret,
+    provider_info,
+)
 
 HELP_TEXT = (
     "Comandos: !modo !tempo !memoria !esquece <coisa> !lembra <coisa> !ranking !badges "
@@ -342,6 +349,61 @@ class AIvsStreamer:
 # ----------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------
+def describe_env(config, logger=print):
+    """Mostra onde o robo procurou as chaves e se achou (sem revelar os segredos)."""
+    import os
+
+    logger("== Arquivos e chaves ==")
+    logger(f"Pasta: {os.path.abspath('.')}")
+    report = load_env(logger=None)
+
+    if report["found"]:
+        logger(f"  .env ........... encontrado em {report['path']}")
+        logger(f"  chaves no .env . {', '.join(report['keys']) or '(nenhuma)'}")
+        logger(f"  python-dotenv .. {'instalado' if report['dotenv'] else 'nao instalado (leitor interno)'}")
+    else:
+        logger("  .env ........... NAO ENCONTRADO")
+
+    for warning in report["warnings"]:
+        logger(f"  AVISO: {warning}")
+
+    # de onde cada chave veio de verdade (config.json, .env ou ambiente)
+    provider = config.get("provider", "apinex")
+    info = provider_info(config, provider)
+    logger("  chaves (com o miolo escondido):")
+    _report_key(info["env"], f"IA {provider}", logger, report, config.get("api_key"))
+
+    twitch_env = str((config.get("twitch") or {}).get("oauth_env") or "TWITCH_OAUTH")
+    twitch_token = (config.get("twitch") or {}).get("oauth") or ""
+    if str(twitch_token).startswith("env:"):
+        twitch_env = str(twitch_token)[4:]
+        twitch_token = ""
+    _report_key([twitch_env], "chat do Twitch", logger, report,
+                twitch_token if str(twitch_token) and not str(twitch_token).startswith("env:") else None,
+                extra="(o robo conecta so leitura sem ele)")
+
+    if not report["found"]:
+        logger("  Dica: copie .env.example para .env e cole as chaves la.")
+    return report
+
+
+def _report_key(names, label, logger, report, config_value=None, extra=""):
+    """Imprime o estado das variaveis de uma chave, sem repetir apelidos vazios."""
+    import os
+
+    names = list(names)
+    defined = [(name, os.environ.get(name, "")) for name in names if os.environ.get(name)]
+    if defined:
+        name, value = defined[0]
+        origem = report["sources"].get(name) or env_sources().get(name) or "ambiente"
+        logger(f"    {name:<16} definida ({mask_secret(value)}) via {origem}")
+    elif config_value:
+        logger(f"    {names[0]:<16} definida no config.json (api_key/oauth) - ok")
+    else:
+        opcoes = " ou ".join(names)
+        logger(f"    {opcoes:<16} NAO DEFINIDA  <-- sem isso o robo nao usa {label} {extra}")
+
+
 def check_ai(config, logger=print):
     """Testa o provedor de IA: chave, uma chamada de verdade, saldo e modelos."""
     ok = True
@@ -392,6 +454,8 @@ def check_ai(config, logger=print):
 def run_check(config, logger=print, say=None):
     """Roda o diagnostico completo: IA + Twitch, e explica o que impede de funcionar."""
     logger("== AI vs Streamer - check de configuracao ==")
+    describe_env(config, logger)
+    logger("")
     ok = check_ai(config, logger)
 
     logger("\n== Twitch (o chat) ==")
@@ -468,8 +532,31 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+def resolve_config_path(path):
+    """Aceita rodar de outra pasta: procura o config.json tambem ao lado do script."""
+    import os
+
+    if os.path.isfile(path):
+        return path
+    if path == DEFAULT_CONFIG_FILE:
+        candidate = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+        if os.path.isfile(candidate):
+            return candidate
+    return path
+
+
 def main(argv=None):
+    import os
+
     args = parse_args(argv)
+    args.config = resolve_config_path(args.config)
+
+    # o .env precisa entrar antes de qualquer coisa (inclusive no --check)
+    env_report = load_env(os.path.join(os.path.dirname(os.path.abspath(args.config)), ".env"))
+    if not args.check:
+        for warning in env_report["warnings"]:
+            print(f"[ENV] {warning}")
+
     try:
         config = load_config(args.config)
     except (OSError, ValueError) as error:

@@ -91,8 +91,9 @@ Comandos completos no chat: `!help`.
 | `tts_engine.py`             | voz do robô (gTTS, com pygame ou player do sistema)         |
 | `web_panel.py`              | painel Flask (`/admin`, `/chat`, `/api/...`)                |
 | `achievements.py`, `chat_levels.py`, `ranking.py` | badges, XP e ranking          |
-| `tests/`                    | 100 testes rodando sem internet (IA + Twitch falso)          |
+| `tests/`                    | 117 testes rodando sem internet (IA + Twitch falso)          |
 | `tests/fake_twitch.py`      | servidor IRC de mentira para testar o chat                   |
+| `tests/fake_apinex.py`      | APInex de mentira: dá para rodar o robô inteiro sem gastar saldo |
 
 ## Socorro: "conecta, mas não responde"
 
@@ -103,10 +104,29 @@ python main.py --check                        # testa IA + Twitch
 python main.py --check --say "ola chat"       # ...e manda uma mensagem de teste no seu chat
 ```
 
+Ele começa mostrando **de onde leu cada chave** (a seu pedido de "pus tudo certinho"):
+
+```
+== Arquivos e chaves ==
+Pasta: /caminho/ai-vs-streamer-v5
+  .env ........... encontrado em /caminho/ai-vs-streamer-v5/.env
+  chaves no .env . APINEX_API_KEY, TWITCH_OAUTH
+  python-dotenv .. instalado
+  chaves (com o miolo escondido):
+    APINEX_API_KEY   definida (sk-apx...1234) via .env
+    TWITCH_OAUTH     definida (oauth:...lido) via .env
+```
+
+O `.env` é lido **sem depender do `python-dotenv`** (leitor próprio, aceita BOM
+do Windows, CRLF, `export`, aspas e comentários) e o robô procura o arquivo na
+pasta atual, na pasta do projeto e na pasta acima (raiz do repositório).
+
 As 4 causas, em ordem de frequência:
 
 | Sintoma no console / painel                                   | Causa                                            | Solução |
 |---------------------------------------------------------------|--------------------------------------------------|---------|
+| `NAO DEFINIDA` na seção "Arquivos e chaves"                    | o `.env` existe mas com outra chave/nome errado   | o check mostra o nome certo e sugere a correção |
+| `.env ........... NAO ENCONTRADO`                              | arquivo com outro nome (`.env.txt`) ou na pasta errada | renomeie para `.env` na pasta `ai-vs-streamer-v5/` |
 | `!!! SEM TOKEN: modo anonimo (so leitura)`                     | falta o token do Twitch                          | ponha `TWITCH_OAUTH=<token>` no `.env` (escopos `chat:read` **e** `chat:edit`) |
 | `!!! TOKEN DO TWITCH RECUSADO: Login authentication failed`    | token expirado/errado (o antigo vazou no GitHub) | gere outro em twitchtokengenerator.com |
 | `nao respondi "..." -> nao citaram o robo (modo 'mentions')`   | ninguém chamou o robô pelo nome                  | diga `robô`/`bot`, use `!pergunta`, ou mude `ai.reply_mode` para `"all"` |
@@ -125,6 +145,18 @@ Detalhes que ajudam a entender:
   console explica isso também.
 - O TTS depende de `gTTS` + um player (`pygame`, `ffplay`, `mpg123`...). Sem isso o robô
   continua respondendo no chat e imprimindo no console, só não sai som.
+
+## Rodar sem gastar nada (dry run)
+
+Suba o APInex de mentira e aponte o config para ele — o robô inteiro funciona,
+com respostas, saldo, busca e contagem de tokens, sem gastar 1 centavo:
+
+```bash
+python tests/fake_apinex.py 8099      # em outro terminal
+# config.json -> "providers": {"apinex": {"base_url": "http://127.0.0.1:8099/v1"}},
+#                "api_key": "sk-apx_teste"
+python main.py --check
+```
 
 ## Testes
 

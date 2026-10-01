@@ -30,7 +30,10 @@ python main.py               # valendo
 
 > **Conectou mas o robô não responde no chat?** Sem o token do Twitch
 > (`TWITCH_OAUTH` no `.env`, escopos `chat:read` + `chat:edit`) ele conecta em modo
-> anônimo e **só consegue ler**. Rode `python main.py --check` — ele aponta a causa
-> (token faltando, token recusado, falta de key da IA ou `ai.reply_mode`).
+> anônimo e **só consegue ler**. Rode `python main.py --check` — ele mostra de onde
+> leu cada chave (com o miolo escondido) e aponta a causa: `.env` não encontrado,
+> `.env.txt`, nome de variável errado, token recusado, falta de key da IA ou
+> `ai.reply_mode`. Para mandar uma mensagem de teste no seu chat:
+> `python main.py --check --say "ola chat"`.
 
 Detalhes, comandos e limitações: [ai-vs-streamer-v5/README.md](ai-vs-streamer-v5/README.md).
