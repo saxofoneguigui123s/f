@@ -91,9 +91,31 @@ Comandos completos no chat: `!help`.
 | `tts_engine.py`             | voz do robô (gTTS, com pygame ou player do sistema)         |
 | `web_panel.py`              | painel Flask (`/admin`, `/chat`, `/api/...`)                |
 | `achievements.py`, `chat_levels.py`, `ranking.py` | badges, XP e ranking          |
-| `tests/`                    | 117 testes rodando sem internet (IA + Twitch falso)          |
+| `tests/`                    | 125 testes rodando sem internet (IA + Twitch falso)          |
 | `tests/fake_twitch.py`      | servidor IRC de mentira para testar o chat                   |
 | `tests/fake_apinex.py`      | APInex de mentira: dá para rodar o robô inteiro sem gastar saldo |
+
+## Teste em 60 segundos (o robô tem que provar que está vivo)
+
+Com `python main.py` rodando, olhe o console e faça isto no chat, nesta ordem:
+
+| o que fazer no chat | o que o console tem que mostrar |
+|---------------------|----------------------------------|
+| (nada — é só esperar a conexão) | `Robô online! Digite !help para ver os comandos.` aparece **no seu chat** sozinho (é a `twitch.startup_message`) |
+| digite algo qualquer, ex: `bom dia` | `[CHAT] seu_nick: bom dia` e, se ninguém citou o robô, `[IA] nao respondi "bom dia" -> nao citaram o robo (modo 'mentions')...` |
+| digite `!ping` | no chat: `@seu_nick estou vivo! provedor=apinex modelo=... modo=chat \| escrevendo: chat` |
+| digite `ei robô, funciona?` | `[IA] respondi para seu_nick` e a resposta no chat |
+
+Interpretação:
+
+- **Nada aparece no console quando o chat digita** → o robô não está recebendo o chat
+  (token/canal) — rode `python main.py --check`.
+- **Aparece `[CHAT] ...` mas nunca a resposta** → leia o motivo na linha seguinte
+  (`nao citaram o robo`, `limite de respostas`, `sem token`, ...).
+- **`!ping` responde mas as mensagens normais não** → está tudo certo: o robô só
+  responde quando é chamado (`ai.reply_mode`). Use `"all"` para responder tudo.
+- Sem querer esse comportamento? `"log_chat": false` no bloco `ai` desliga o log de
+  cada mensagem (as explicações continuam).
 
 ## Socorro: "conecta, mas não responde"
 
@@ -130,6 +152,8 @@ As 4 causas, em ordem de frequência:
 | `!!! SEM TOKEN: modo anonimo (so leitura)`                     | falta o token do Twitch                          | ponha `TWITCH_OAUTH=<token>` no `.env` (escopos `chat:read` **e** `chat:edit`) |
 | `!!! TOKEN DO TWITCH RECUSADO: Login authentication failed`    | token expirado/errado (o antigo vazou no GitHub) | gere outro em twitchtokengenerator.com |
 | `nao respondi "..." -> nao citaram o robo (modo 'mentions')`   | ninguém chamou o robô pelo nome                  | diga `robô`/`bot`, use `!pergunta`, ou mude `ai.reply_mode` para `"all"` |
+| `nao respondi "..." -> limite de respostas atingido`           | cota do provedor (APInex grátis: ~5 RPM)         | espere alguns segundos ou aumente `ai.responses_per_minute` |
+| `tentei responder X mas nao saiu texto`                        | a IA falhou (rede/saldo/modelo) naquele momento   | veja a linha de erro acima; o robô já tenta o plano B |
 | `IA: apinex / ... (sem chave - usando frases prontas)`         | falta a `APINEX_API_KEY` no `.env`               | pegue uma key em apinex.bond/keys |
 
 Detalhes que ajudam a entender:
@@ -143,6 +167,9 @@ Detalhes que ajudam a entender:
 - **Limite de respostas:** `ai.responses_per_minute` (4) e `ai.reply_cooldown` (6s)
   seguram a cota do APInex — mensagens do chat podem ser ignoradas de propósito; o
   console explica isso também.
+- **Menção é palavra inteira:** dizer "bom **dia**" não chama o robô (antes chamava,
+  porque "ia" aparecia dentro de "dia" — bug corrigido). Vale `robô`, `robo`, `bot`
+  ou `ia` como palavra separada (`!help` mostra tudo).
 - O TTS depende de `gTTS` + um player (`pygame`, `ffplay`, `mpg123`...). Sem isso o robô
   continua respondendo no chat e imprimindo no console, só não sai som.
 

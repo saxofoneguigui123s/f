@@ -49,6 +49,31 @@ def _strip_accents(text):
     return "".join(char for char in normalized if not unicodedata.combining(char))
 
 
+def _mention_pattern(names):
+    """Monta o regex que acha o robo sendo citado como PALAVRA INTEIRA.
+
+    Sem isso, "ia" casaria dentro de "dia", "familia", "economia"... e o robo
+    responderia qualquer conversa fiada do chat.
+    """
+    limpos = []
+    for name in names or ():
+        nome = _strip_accents(str(name).lower()).strip()
+        if nome and nome not in limpos:
+            limpos.append(nome)
+    if not limpos:
+        return None
+    alternativas = "|".join(re.escape(nome) for nome in limpos)
+    return re.compile(rf"(?<![a-z0-9])(?:{alternativas})(?![a-z0-9])")
+
+
+def is_mentioned(message, names):
+    """True se a mensagem chama o robo pelo nome (palavra inteira, sem acento)."""
+    pattern = _mention_pattern(names)
+    if pattern is None:
+        return False
+    return bool(pattern.search(_strip_accents(str(message or "").lower())))
+
+
 class AIEngine:
     """Fachada de IA do robo: prompt + provedor + memoria + limite de uso."""
 
@@ -259,8 +284,7 @@ class AIEngine:
             return False
 
         if self.reply_mode in ("mentions", "mention", "mencao", "menções"):
-            target = _strip_accents(message.lower())
-            if not any(_strip_accents(name) in target for name in self.bot_names):
+            if not is_mentioned(message, self.bot_names):
                 return False
         elif self.reply_mode in ("questions", "perguntas"):
             if "?" not in message:
@@ -293,11 +317,11 @@ class AIEngine:
         if self.reply_mode in ("off", "none", "nunca"):
             return "ai.reply_mode esta em 'off'"
         if self.reply_mode in ("mentions", "mention", "mencao", "menções"):
-            target = _strip_accents(message.lower())
-            if not any(_strip_accents(name) in target for name in self.bot_names):
+            if not is_mentioned(message, self.bot_names):
                 nomes = ", ".join(self.bot_names)
-                return (f"nao citaram o robo (modo 'mentions'). Chame por {nomes}, "
-                        f"ou use !pergunta, ou mude ai.reply_mode para \"all\"")
+                return (f"nao citaram o robo (modo 'mentions'). Chame por {nomes} "
+                        f"como palavra separada (ex: \"ei robô\"), ou use !pergunta, "
+                        f"ou mude ai.reply_mode para \"all\"")
         elif self.reply_mode in ("questions", "perguntas") and "?" not in message:
             return "ai.reply_mode = 'questions' e a mensagem nao era pergunta"
         if not self.reply_gate.allow():

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 
 DEFAULT_CONFIG_FILE = "config.json"
@@ -102,6 +103,12 @@ class AIvsStreamer:
 
         if low == "!help" or low == "!ajuda":
             return mention + HELP_TEXT
+        if low in ("!ping", "!bot", "!status"):
+            info = self.ai.status()
+            chat = self.chat.status().get("twitch") or {}
+            onde = "chat" if chat.get("can_send") else (chat.get("reason") or "sem chat")
+            return (f"@{username} estou vivo! provedor={info['provider']} "
+                    f"modelo={info['model']} modo={info['mode']} | escrevendo: {onde}")
         if low == "!modo":
             mode = self.voting.get_mode()
             return f"@{username} Modo atual: {'CHAT' if mode == 'chat' else 'TROLL'}"
@@ -214,6 +221,9 @@ class AIvsStreamer:
     # ------------------------------------------------------------------
     def handle_message(self, user, msg):
         """Processa uma mensagem do chat: comando, voto, XP e resposta da IA."""
+        if self.config.get("ai", {}).get("log_chat", True):
+            self.logger(f"[CHAT] {user}: {msg}")
+
         cmd = self.handle_command(user, msg)
         if cmd:
             self.chat.send_message(cmd)
@@ -235,6 +245,11 @@ class AIvsStreamer:
                 self.ai.speak(answer)
                 self.chat.send_message(f"@{user} {answer}")
                 self.history.add("AI", answer, "reply")
+                self.logger(f"[IA] respondi para {user}")
+            else:
+                status = self.ai.status()
+                self.logger(f"[IA] tentei responder {user} mas nao saiu texto "
+                            f"(provedor {status['provider']} falhou - veja os erros acima)")
         else:
             self._explain_skip(user, msg)
 
@@ -259,6 +274,7 @@ class AIvsStreamer:
                         "Rode 'python main.py --check' para configurar.")
         self.chat.start()
         self._warn_chat()
+        self._announce_startup()
         if self.use_web:
             self.web.start()
         if self.config.get("streamer_offline_mode"):
@@ -267,6 +283,25 @@ class AIvsStreamer:
             self.voice.start()
         except Exception as error:
             self.logger(f"[VOZ] desligada: {error}")
+
+    def _announce_startup(self):
+        """Manda a mensagem de boas-vindas no chat (prova que o robo consegue escrever)."""
+        texto = str((self.config.get("twitch") or {}).get("startup_message") or "").strip()
+        if not texto:
+            return
+
+        def worker():
+            deadline = time.time() + 20
+            while time.time() < deadline and self.running:
+                if self.chat.can_send:
+                    if self.chat.send_message(texto):
+                        self.history.add("BOT", texto, "startup")
+                    return
+                time.sleep(0.5)
+            self.logger("[CHAT] nao consegui mandar a mensagem de boas-vindas "
+                        "(o chat nao esta pronto para escrever)")
+
+        threading.Thread(target=worker, daemon=True, name="startup-message").start()
 
     def _warn_chat(self):
         """Avisa na largada quando o robo conecta mas nao vai conseguir responder."""

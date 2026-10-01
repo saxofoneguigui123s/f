@@ -20,7 +20,7 @@ def build_engine(provider=None, **ai_overrides):
         "history_turns": 4,
         "reply_enabled": True,
         "reply_mode": "mentions",
-        "bot_names": ["robô", "robo", "bot"],
+        "bot_names": ["robô", "robo", "bot", "ia"],
         "reply_cooldown": 0,
         "responses_per_minute": 0,
         "max_reply_chars": 60,
@@ -70,6 +70,19 @@ class AIEngineTests(unittest.TestCase):
         self.assertFalse(engine.should_reply("ana", "bom dia a todos"))
         self.assertTrue(engine.should_reply("ana", "ei robô, tudo bem?"))
         self.assertTrue(engine.should_reply("ana", "BOT?"))
+
+    def test_nao_responde_quando_o_nome_aparece_dentro_de_outra_palavra(self):
+        """Bug antigo: "ia" dentro de "dia"/"familia" fazia o robo responder tudo."""
+        engine = build_engine()
+        for frase in ("bom dia pessoal", "minha familia chegou", "a economia ta ruim",
+                      "ele jogaria melhor", "olha o dibre"):
+            self.assertFalse(engine.should_reply("ana", frase), frase)
+
+    def test_responde_quando_o_nome_e_palavra_inteira(self):
+        engine = build_engine()
+        for frase in ("robô, ajuda aqui", "ei robo", "fala BOT", "ia, responde",
+                      "Robô!", "bot?"):
+            self.assertTrue(engine.should_reply("ana", frase), frase)
 
     def test_portao_ignora_comandos(self):
         engine = build_engine()

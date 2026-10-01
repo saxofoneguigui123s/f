@@ -20,7 +20,7 @@ from tests.helpers import FakeProvider  # noqa: E402
 def build_engine(provider=None, **ai_overrides):
     ai_config = {
         "reply_mode": "mentions", "reply_cooldown": 0, "responses_per_minute": 0,
-        "bot_names": ["robô", "robo", "bot"], "memory_file":
+        "bot_names": ["robô", "robo", "bot", "ia"], "memory_file":
             os.path.join(tempfile.mkdtemp(), "mem.json"),
     }
     ai_config.update(ai_overrides)

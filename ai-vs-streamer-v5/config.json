@@ -24,7 +24,8 @@
         "reply_cooldown": 6,
         "responses_per_minute": 4,
         "max_reply_chars": 240,
-        "memory_file": "data/memories.json"
+        "memory_file": "data/memories.json",
+        "log_chat": true
     },
     "providers": {
         "apinex": {
@@ -65,7 +66,8 @@
         "oauth_env": "TWITCH_OAUTH",
         "nickname": "",
         "send_per_minute": 18,
-        "send_interval": 1.5
+        "send_interval": 1.5,
+        "startup_message": "Robô online! Digite !help para ver os comandos."
     },
     "youtube": {
         "enabled": false,
