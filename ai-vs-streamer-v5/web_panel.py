@@ -1,7 +1,7 @@
 """Painel web completo - controle pelo navegador."""
 
 import threading
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, redirect, request
 
 class WebPanel:
     def __init__(self, app, config):
@@ -15,7 +15,7 @@ class WebPanel:
 
         @f.route("/")
         def home():
-            return "<h1>AI vs Streamer</h1><a href='/admin'>Painel Admin</a>"
+            return redirect("/admin")
 
         @f.route("/admin")
         def admin():
