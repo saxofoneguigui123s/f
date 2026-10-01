@@ -20,10 +20,17 @@ com fallback automático para `offline` se faltar chave/rede. Também dá para u
 
 ```bash
 cd ai-vs-streamer-v5
-cp .env.example .env      # cole a key: APINEX_API_KEY=sk-apx...
-python main.py --check    # valida config, chave, saldo e faz 1 chamada
-python main.py --simulate # conversa no terminal, sem Twitch
-python main.py            # valendo
+cp .env.example .env         # cole a key: APINEX_API_KEY=sk-apx...
+                             # e o token do chat: TWITCH_OAUTH=...
+python main.py --check       # testa IA + Twitch e diz o que falta
+python main.py --check --say "ola chat"   # manda uma mensagem de teste no chat
+python main.py --simulate    # conversa no terminal, sem Twitch
+python main.py               # valendo
 ```
+
+> **Conectou mas o robô não responde no chat?** Sem o token do Twitch
+> (`TWITCH_OAUTH` no `.env`, escopos `chat:read` + `chat:edit`) ele conecta em modo
+> anônimo e **só consegue ler**. Rode `python main.py --check` — ele aponta a causa
+> (token faltando, token recusado, falta de key da IA ou `ai.reply_mode`).
 
 Detalhes, comandos e limitações: [ai-vs-streamer-v5/README.md](ai-vs-streamer-v5/README.md).

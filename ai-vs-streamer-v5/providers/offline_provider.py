@@ -77,12 +77,15 @@ class OfflineProvider(BaseProvider):
         """Escolhe uma frase de acordo com o modo (troll/chat) e o texto."""
         prompt = self._last_user_message(messages).lower()
         system = " ".join(str(m.get("content", "")) for m in (messages or []) if m.get("role") == "system").lower()
+        # o prompt base cita "modo TROLL" nas instrucoes; so o marcador "MODO ATUAL:"
+        # diz qual e o modo ligado agora.
+        troll_mode = "modo atual: troll" in system or "modo troll ativado" in system
 
         if any(word in prompt for word in ("troll", "atrapalha", "dica falsa", "distrai")):
             return random.choice(TROLL_LINES)
         if any(word in prompt for word in ("joguei bem", "gg", "boa", "elogia")):
             return random.choice(PRAISE_LINES)
-        if "modo atual: troll" in system or "modo troll" in system:
+        if troll_mode:
             return random.choice(TROLL_LINES)
         if len(prompt.split()) <= 2 and prompt.endswith("?"):
             return random.choice(CONFUSED_LINES)

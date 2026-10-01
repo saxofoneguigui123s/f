@@ -20,13 +20,24 @@ class WebPanel:
         @f.route("/admin")
         def admin():
             info = self.app_ref.ai.status()
+            chat = self.app_ref.chat.status().get("twitch") or {}
+            if chat.get("simulated"):
+                chat_line = "Chat: simulado no terminal"
+            elif not chat.get("enabled"):
+                chat_line = "Chat: Twitch desligada no config.json"
+            elif chat.get("can_send"):
+                chat_line = f"Chat: conectado em #{chat.get('channel')} (pode responder)"
+            else:
+                chat_line = (f"Chat: <b>NAO consegue responder</b> - "
+                             f"{chat.get('reason') or 'sem login'}")
             return (
                 "<h1>Painel Admin</h1>"
                 f"<p>Modo: {self.app_ref.voting.get_mode()}</p>"
                 f"<p>IA: {info['provider']} / {info['model']} "
-                f"({'ok' if info['available'] else 'sem chave'})</p>"
+                f"({'ok' if info['available'] else 'sem chave - usando frases prontas'})</p>"
                 f"<p>Reserva: {info['fallback']} | memorias: {info['memories']} | "
                 f"erros: {info['stats']['errors']}</p>"
+                f"<p>{chat_line}</p>"
                 "<p><a href='/chat'>Chat da IA</a> | <a href='/api/status'>/api/status</a> | "
                 "<a href='/api/ai'>/api/ai</a></p>"
             )

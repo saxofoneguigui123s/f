@@ -279,6 +279,33 @@ class AIEngine:
             return ""
         return self._answer(username, message)
 
+    def explain_skip(self, username, message):
+        """Diz (em portugues) por que o robo NAO respondeu uma mensagem.
+
+        Serve para o console/README: sem isso o usuario ve o robo conectado e
+        calado, sem saber se e limite, mencao ou configuracao.
+        """
+        message = (message or "").strip()
+        if not message or message.startswith("!"):
+            return ""
+        if not self.reply_enabled:
+            return "respostas automaticas desligadas (ai.reply_enabled = false)"
+        if self.reply_mode in ("off", "none", "nunca"):
+            return "ai.reply_mode esta em 'off'"
+        if self.reply_mode in ("mentions", "mention", "mencao", "menções"):
+            target = _strip_accents(message.lower())
+            if not any(_strip_accents(name) in target for name in self.bot_names):
+                nomes = ", ".join(self.bot_names)
+                return (f"nao citaram o robo (modo 'mentions'). Chame por {nomes}, "
+                        f"ou use !pergunta, ou mude ai.reply_mode para \"all\"")
+        elif self.reply_mode in ("questions", "perguntas") and "?" not in message:
+            return "ai.reply_mode = 'questions' e a mensagem nao era pergunta"
+        if not self.reply_gate.allow():
+            return (f"limite de respostas atingido (ai.responses_per_minute="
+                    f"{self.reply_gate.max_per_minute}, ai.reply_cooldown="
+                    f"{self.reply_gate.min_interval:g}s)")
+        return ""
+
     def ask(self, question, username="chat"):
         """Pergunta direta (comando !pergunta).
 

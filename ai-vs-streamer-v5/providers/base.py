@@ -132,6 +132,7 @@ class BaseProvider:
         self.transport = transport
         self.logger = logger
         self.last_error = None
+        self.model = self.config.get("model") or self.default_model
 
     # -- estado ---------------------------------------------------------
     def available(self):

@@ -1,12 +1,10 @@
 {
     "voting_interval": 600,
     "chaos_interval": 60,
-
     "provider": "apinex",
     "fallback_provider": "offline",
     "api_key_env": "APINEX_API_KEY",
     "model": "free/gpt-6-luna",
-
     "ai": {
         "system_prompt_file": "prompts/default.txt",
         "history_turns": 8,
@@ -17,13 +15,17 @@
         "reasoning_effort": "low",
         "reply_enabled": true,
         "reply_mode": "mentions",
-        "bot_names": ["robô", "robo", "bot", "ia"],
+        "bot_names": [
+            "robô",
+            "robo",
+            "bot",
+            "ia"
+        ],
         "reply_cooldown": 6,
         "responses_per_minute": 4,
         "max_reply_chars": 240,
         "memory_file": "data/memories.json"
     },
-
     "providers": {
         "apinex": {
             "base_url": "https://api.apinex.bond/v1",
@@ -56,11 +58,10 @@
         },
         "offline": {}
     },
-
     "twitch": {
         "enabled": true,
         "channel": "Guigui123wa",
-        "oauth": "",
+        "oauth": "env:TWITCH_OAUTH",
         "oauth_env": "TWITCH_OAUTH",
         "nickname": "",
         "send_per_minute": 18,

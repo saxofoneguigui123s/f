@@ -27,7 +27,7 @@ def load_config(path=DEFAULT_CONFIG_FILE):
         return json.load(handle)
 
 
-from chat_reader import ChatReader                      # noqa: E402
+from chat_reader import TOKEN_HELP, ChatReader, TwitchChat  # noqa: E402
 from terminal_chat import TerminalChat                  # noqa: E402
 from voting import VotingSystem                          # noqa: E402
 from ai_engine import AIEngine                           # noqa: E402
@@ -228,6 +228,19 @@ class AIvsStreamer:
                 self.ai.speak(answer)
                 self.chat.send_message(f"@{user} {answer}")
                 self.history.add("AI", answer, "reply")
+        else:
+            self._explain_skip(user, msg)
+
+    def _explain_skip(self, user, msg):
+        """Mostra no console por que o robo ficou quieto (so nas primeiras vezes)."""
+        reason = self.ai.explain_skip(user, msg)
+        if not reason:
+            return
+        self.skipped = getattr(self, "skipped", 0) + 1
+        if self.skipped <= 5:
+            self.logger(f'[IA] nao respondi "{msg[:50]}" -> {reason}')
+        elif self.skipped == 6:
+            self.logger("[IA] (nao vou repetir esse aviso; veja ai.reply_mode no config.json)")
 
     def start(self):
         self.logger("AI vs Streamer v5 rodando!")
@@ -238,6 +251,7 @@ class AIvsStreamer:
             self.logger("[AI] provedor principal sem chave: rodando com frases prontas. "
                         "Rode 'python main.py --check' para configurar.")
         self.chat.start()
+        self._warn_chat()
         if self.use_web:
             self.web.start()
         if self.config.get("streamer_offline_mode"):
@@ -246,6 +260,22 @@ class AIvsStreamer:
             self.voice.start()
         except Exception as error:
             self.logger(f"[VOZ] desligada: {error}")
+
+    def _warn_chat(self):
+        """Avisa na largada quando o robo conecta mas nao vai conseguir responder."""
+        status = self.chat.status()
+        twitch = status.get("twitch") or {}
+        if not twitch.get("enabled"):
+            return
+        if "simulated" in twitch:
+            return
+        if not twitch.get("anonymous") and not twitch.get("auth_failed"):
+            return
+        if twitch.get("anonymous"):
+            self.logger("[CHAT] ATENCAO: sem token do Twitch -> o robo LE o chat mas NAO responde.")
+        else:
+            self.logger("[CHAT] ATENCAO: token do Twitch recusado -> rodando so leitura.")
+        self.logger("[CHAT] Resolva com: python main.py --check   (ele testa o token e explica)")
 
     def run(self):
         self.start()
@@ -312,10 +342,10 @@ class AIvsStreamer:
 # ----------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------
-def run_check(config, logger=print):
-    """Valida config, provedores, chave e (se der) uma chamada de verdade."""
+def check_ai(config, logger=print):
+    """Testa o provedor de IA: chave, uma chamada de verdade, saldo e modelos."""
     ok = True
-    logger("== AI vs Streamer - check de configuracao ==")
+    logger("== IA (o cerebro) ==")
     current = config.get("provider", "apinex")
     logger(f"Provedor principal: {current} | reserva: {config.get('fallback_provider', 'offline')}")
     logger(f"Modelo: {config.get('model') or '(padrao do provedor)'} | "
@@ -331,8 +361,10 @@ def run_check(config, logger=print):
     provider = build_provider(config, current)
     if not provider.available():
         logger("[FALHA] " + provider.missing_key_message())
-        logger("\nDica: copie .env.example para .env e cole sua key do APInex.")
-        return 1
+        logger("Dica: sem chave o robo responde com frases prontas (provedor offline).")
+        fallback = config.get("fallback_provider", "offline")
+        logger(f"(o plano B configurado e '{fallback}', entao o chat nao fica mudo)")
+        return False
 
     logger(f"Chamando {provider.name}/{getattr(provider, 'model', '?')}...")
     try:
@@ -354,9 +386,75 @@ def run_check(config, logger=print):
         free = provider.free_models() if ok else []
         if free:
             logger(f"Modelos gratuitos: {', '.join(free[:8])}...")
+    return ok
 
-    logger("\nResultado: " + ("TUDO OK" if ok else "HA FALHAS (veja acima)"))
-    return 0 if ok else 1
+
+def run_check(config, logger=print, say=None):
+    """Roda o diagnostico completo: IA + Twitch, e explica o que impede de funcionar."""
+    logger("== AI vs Streamer - check de configuracao ==")
+    ok = check_ai(config, logger)
+
+    logger("\n== Twitch (o chat) ==")
+    twitch_ok = check_twitch(config, logger, say=say)
+
+    logger("")
+    logger("Resumo:")
+    logger(f"  IA .....: {'OK' if ok else 'COM PROBLEMA'}")
+    logger(f"  Twitch .: {'OK' if twitch_ok else 'COM PROBLEMA'}")
+    if not twitch_ok:
+        logger("  -> Sem o Twitch OK o robo pode CONECTAR e mesmo assim NAO responder no chat.")
+    return 0 if (ok and twitch_ok) else 1
+
+
+def check_twitch(config, logger=print, say=None):
+    """Testa token/canal e (opcional) manda uma mensagem de teste. True = pode responder."""
+    twitch = dict(config.get("twitch") or {})
+    if not twitch.get("enabled"):
+        logger("Twitch desligada no config.json (twitch.enabled = false).")
+        return True
+
+    channel = str(twitch.get("channel") or "").strip()
+    if not channel or channel.lower() == "seu_canal":
+        logger("[FALHA] twitch.channel nao foi configurado - nao da para entrar em nenhum chat.")
+        return False
+
+    client = TwitchChat(twitch, logger=logger)
+    logger(f"Canal: #{client.channel} | nick: {client.nickname} | "
+           f"token: {'sim' if not client.anonymous else 'NAO'}")
+
+    if client.anonymous:
+        logger("[FALHA] Sem token do Twitch: o robo conecta em MODO ANONIMO, le o chat, "
+               "mas NAO consegue responder.")
+        for line in TOKEN_HELP.splitlines():
+            logger("  " + line)
+        if client.allow_anonymous_fallback:
+            logger("(para testar so a leitura, rode: python main.py --simulate)")
+        return False
+
+    logger("Testando login no Twitch...")
+    started = time.time()
+    ok, message = client.test_login()
+    logger(f"  [{ok and 'OK' or 'FALHA'}] {message} ({time.time() - started:.1f}s)")
+
+    try:
+        if ok and say:
+            logger(f"Enviando mensagem de teste: {say!r}")
+            time.sleep(0.5)  # deixa o JOIN chegar na Twitch
+            sent = client.send(say, force=True)
+            time.sleep(0.5)
+            if sent:
+                logger("  [OK] mensagem enviada - olhe o seu chat da Twitch!")
+            else:
+                logger("  [FALHA] a Twitch nao aceitou a mensagem (veja os avisos acima)")
+            ok = ok and bool(sent)
+        elif ok:
+            logger('Dica: use --say "ola chat" para eu mandar uma mensagem de teste no chat.')
+    finally:
+        client.stop()
+
+    if not ok:
+        logger("Confira o token (precisa dos escopos chat:read e chat:edit) e se o canal existe.")
+    return bool(ok)
 
 
 def parse_args(argv=None):
@@ -365,6 +463,8 @@ def parse_args(argv=None):
     parser.add_argument("--check", action="store_true", help="valida config/provedor/chave e sai")
     parser.add_argument("--simulate", action="store_true", help="roda no terminal, sem Twitch")
     parser.add_argument("--no-web", action="store_true", help="nao sobe o painel web")
+    parser.add_argument("--say", metavar="TEXTO",
+                        help="com --check, manda uma mensagem de teste no chat do Twitch")
     return parser.parse_args(argv)
 
 
@@ -377,7 +477,7 @@ def main(argv=None):
         return 1
 
     if args.check:
-        return run_check(config)
+        return run_check(config, say=args.say)
 
     app = AIvsStreamer(config, simulate=args.simulate, use_web=not args.no_web)
     try:

@@ -104,7 +104,8 @@ def provider_config(config, name=None):
 
     # atalhos no topo do config.json valem so para o provedor principal
     # (assim trocar de provedor nao herda o modelo do APInex, por exemplo)
-    if selected == normalize_name(config.get("provider") or "apinex"):
+    # e nunca para o 'offline', que nao usa modelo nem chave.
+    if selected != "offline" and selected == normalize_name(config.get("provider") or "apinex"):
         for key in ("model", "api_key", "api_key_env", "base_url", "temperature", "max_tokens",
                     "timeout", "max_retries", "reasoning_effort"):
             value = config.get(key)

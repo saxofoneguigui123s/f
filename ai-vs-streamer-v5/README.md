@@ -91,7 +91,40 @@ Comandos completos no chat: `!help`.
 | `tts_engine.py`             | voz do robô (gTTS, com pygame ou player do sistema)         |
 | `web_panel.py`              | painel Flask (`/admin`, `/chat`, `/api/...`)                |
 | `achievements.py`, `chat_levels.py`, `ranking.py` | badges, XP e ranking          |
-| `tests/`                    | 72 testes rodando sem internet                              |
+| `tests/`                    | 100 testes rodando sem internet (IA + Twitch falso)          |
+| `tests/fake_twitch.py`      | servidor IRC de mentira para testar o chat                   |
+
+## Socorro: "conecta, mas não responde"
+
+Rode **um** comando e ele diz exatamente o que está faltando:
+
+```bash
+python main.py --check                        # testa IA + Twitch
+python main.py --check --say "ola chat"       # ...e manda uma mensagem de teste no seu chat
+```
+
+As 4 causas, em ordem de frequência:
+
+| Sintoma no console / painel                                   | Causa                                            | Solução |
+|---------------------------------------------------------------|--------------------------------------------------|---------|
+| `!!! SEM TOKEN: modo anonimo (so leitura)`                     | falta o token do Twitch                          | ponha `TWITCH_OAUTH=<token>` no `.env` (escopos `chat:read` **e** `chat:edit`) |
+| `!!! TOKEN DO TWITCH RECUSADO: Login authentication failed`    | token expirado/errado (o antigo vazou no GitHub) | gere outro em twitchtokengenerator.com |
+| `nao respondi "..." -> nao citaram o robo (modo 'mentions')`   | ninguém chamou o robô pelo nome                  | diga `robô`/`bot`, use `!pergunta`, ou mude `ai.reply_mode` para `"all"` |
+| `IA: apinex / ... (sem chave - usando frases prontas)`         | falta a `APINEX_API_KEY` no `.env`               | pegue uma key em apinex.bond/keys |
+
+Detalhes que ajudam a entender:
+
+- **Conectar ≠ poder falar.** Sem token, o IRC da Twitch aceita a conexão anônima: o robô
+  lê o chat, mas a Twitch não deixa escrever. O código agora avisa isso na hora e o
+  painel (`/admin` e `/api/status`) mostra `can_send: false` com o motivo.
+- **Token recusado:** o robô deixava de dizer "conectada" antes de autenticar (bug
+  corrigido). Agora ele espera o `001 Welcome`, e se a Twitch recusar ele grita o motivo
+  e continua em modo anônimo (lendo) em vez de fingir que está tudo bem.
+- **Limite de respostas:** `ai.responses_per_minute` (4) e `ai.reply_cooldown` (6s)
+  seguram a cota do APInex — mensagens do chat podem ser ignoradas de propósito; o
+  console explica isso também.
+- O TTS depende de `gTTS` + um player (`pygame`, `ffplay`, `mpg123`...). Sem isso o robô
+  continua respondendo no chat e imprimindo no console, só não sai som.
 
 ## Testes
 
@@ -99,15 +132,18 @@ Comandos completos no chat: `!help`.
 python -m unittest discover -s tests -t .
 ```
 
-Rodam com um transporte HTTP falso — não gastam cota nem precisam de chave.
+Rodam com um transporte HTTP falso e um servidor IRC de mentira — não gastam cota, não
+precisam de chave e não precisam de internet.
 
 ## Avisos
 
 - **Rotacione o token do Twitch.** O token antigo estava escrito no `config.json`
   publicado (e continua no histórico do Git). Ele foi removido do arquivo: agora o
-  token vem do `.env`/ambiente (`TWITCH_OAUTH`). Gere um novo em
-  <https://twitchtokengenerator.com> (escopos `chat:read` + `chat:edit`).
-- Sem token, o robô entra no Twitch em modo anônimo: **só leitura**.
+  token vem do `.env`/ambiente (`TWITCH_OAUTH`, via `"oauth": "env:TWITCH_OAUTH"` no
+  config). Gere um novo em <https://twitchtokengenerator.com>
+  (escopos `chat:read` + `chat:edit`).
+- Sem token, o robô entra no Twitch em modo anônimo: **só leitura** — ele vê o chat,
+  mas não consegue responder. O console e o painel avisam.
 - **YouTube ainda não está implementado** (`chat_reader.py` era um stub vazio); o
   áudio do TTS depende do `gTTS` e de um player (`pygame`, `ffplay`, `mpg123`...).
 - Os arquivos de som em `sounds/` (`ding.wav`, `sinister.wav`...) são opcionais: se não

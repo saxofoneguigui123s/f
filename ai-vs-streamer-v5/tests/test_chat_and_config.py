@@ -70,7 +70,9 @@ class ConfigTests(unittest.TestCase):
     def test_token_do_twitch_nao_esta_no_config(self):
         """O token antigo ficou publico no GitHub: deve vir do ambiente/.env."""
         config = load_config(os.path.join(BASE_DIR, "config.json"))
-        self.assertEqual(config["twitch"]["oauth"], "")
+        token = config["twitch"]["oauth"]
+        self.assertTrue(token == "" or token.startswith("env:"),
+                        f"token do Twitch nao pode ficar escrito no config.json: {token!r}")
         self.assertEqual(config["twitch"]["oauth_env"], "TWITCH_OAUTH")
 
     def test_info_do_provedor_apinex(self):
