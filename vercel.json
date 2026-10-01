@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/answer", "destination": "/answer/index.html" }
+  ],
+  "functions": {
+    "api/answer.js": {
+      "includeFiles": "{config,prompts}/**"
+    }
+  }
+}

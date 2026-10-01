@@ -1,0 +1,103 @@
+{
+  "server": {
+    "port": 8787,
+    "host": "0.0.0.0"
+  },
+  "streamer": {
+    "name": "Streamer",
+    "game": "",
+    "context": ""
+  },
+  "robot": {
+    "name": "VEX",
+    "maxLineChars": 220,
+    "minSecondsBetweenLines": 6,
+    "chattiness": {
+      "chatModeReplyChance": 0.4,
+      "chatModeMaxLinesPerMinute": 8,
+      "streamerModeMinGapSeconds": 22,
+      "streamerModeMaxGapSeconds": 55,
+      "interruptOnChatHype": true,
+      "hypeMessagesToTrigger": 12
+    },
+    "voice": {
+      "browser": true,
+      "rate": 1.05,
+      "pitch": 0.8,
+      "volume": 1,
+      "serverTtsCommand": "",
+      "serverTtsEnabled": false
+    }
+  },
+  "round": {
+    "phaseSeconds": 600,
+    "voteWindowSeconds": 60,
+    "startMode": "streamer",
+    "minVotesToChange": 3,
+    "tieKeepsCurrentMode": true,
+    "allowVoteChange": true,
+    "autoStart": true,
+    "announceWinnerLine": true
+  },
+  "votes": {
+    "weights": {
+      "viewer": 1,
+      "subscriber": 2,
+      "vip": 2,
+      "moderator": 3,
+      "broadcaster": 3,
+      "bitsPerPoint": 10
+    }
+  },
+  "chat": {
+    "twitch": {
+      "enabled": true,
+      "channel": "",
+      "username": "",
+      "oauthToken": "",
+      "anonymousRead": true,
+      "sendMessages": true
+    },
+    "youtube": {
+      "enabled": false,
+      "videoId": "",
+      "apiKey": ""
+    },
+    "simulator": {
+      "enabled": false,
+      "autoVote": true,
+      "messagesPerMinute": 14
+    },
+    "historySeconds": 600
+  },
+  "ai": {
+    "provider": "auto",
+    "model": "",
+    "baseUrl": "",
+    "apiKey": "",
+    "temperature": 0.95,
+    "maxTokens": 240,
+    "timeoutMs": 25000,
+    "interpretChat": true,
+    "interpretVotes": true,
+    "language": "pt-BR"
+  },
+  "commands": {
+    "prefix": "!",
+    "voteChat": ["1", "chat", "fala com o chat", "chatmode", "modo chat", "pacifista", "amigo"],
+    "voteStreamer": ["2", "streamer", "atrapalha", "modo caos", "caos", "zoeira", "perturba", "fala com o streamer"],
+    "askRobot": ["robo", "robô", "vex", "pergunta"],
+    "robotStfu": ["calaboca", "silencio", "silêncio", "stfu", "mute"],
+    "levelDone": ["passou", "fase", "proxima fase", "nextfase", "gg"],
+    "rules": ["regras", "comandos", "help"]
+  },
+  "overlay": {
+    "theme": "neon",
+    "showVoteBar": true,
+    "showSubtitles": true,
+    "showChatFeed": true,
+    "showTimer": true,
+    "accentChat": "#38f9d7",
+    "accentStreamer": "#ff3b6b"
+  }
+}

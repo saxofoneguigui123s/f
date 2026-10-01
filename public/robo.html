@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>AI vs Streamer — Rosto do robô</title>
+<style>
+  html, body { margin:0; height:100%; background:transparent; overflow:hidden; }
+  body { display:grid; place-items:center; font-family:'Segoe UI', system-ui, sans-serif; }
+  #wrap { position:relative; display:grid; place-items:center; }
+  canvas { filter:drop-shadow(0 0 40px rgba(176,107,255,.5)); transition:transform .3s ease; }
+  #wrap.talking canvas { transform:scale(1.06); }
+  #name {
+    position:absolute; bottom:-6px; left:50%; transform:translateX(-50%);
+    font-size:20px; letter-spacing:.32em; text-transform:uppercase; font-weight:800; color:#b06bff;
+    text-shadow:0 0 18px rgba(176,107,255,.8); white-space:nowrap;
+  }
+  #glow { position:absolute; width:110%; height:110%; border-radius:50%;
+    background:radial-gradient(circle, rgba(176,107,255,.22), transparent 65%); z-index:-1;
+    animation:breathe 3.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform:scale(1); opacity:.6; } 50% { transform:scale(1.12); opacity:1; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="glow"></div>
+  <canvas id="c" width="520" height="560"></canvas>
+  <div id="name">VEX</div>
+</div>
+<script>
+'use strict';
+/* Rosto do robô — reage a cada fala. Use como Fonte de Navegador no OBS.
+   ?voice=1 fala em voz alta · ?size=1.4 aumenta */
+const qs = new URLSearchParams(location.search);
+const VOICE = qs.get('voice') === '1';
+const SIZE = Number(qs.get('size') || 1);
+const cv = document.querySelector('#c');
+const wrap = document.querySelector('#wrap');
+if (SIZE !== 1) cv.style.width = `${520 * SIZE}px`;
+const ctx = cv.getContext('2d');
+
+let speaking = false, speakUntil = 0, t0 = performance.now(), lastText = '';
+
+// WebSocket: escuta o servidor
+(function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onmessage = (evt) => {
+    let d; try { d = JSON.parse(evt.data); } catch { return; }
+    if (d.type === 'state' && d.state) document.querySelector('#name').textContent = d.state.robot?.name || 'VEX';
+    if (d.type === 'event' && d.event?.type === 'speak') onSpeak(d.event);
+  };
+  ws.onclose = () => setTimeout(connect, 1500);
+})();
+
+function onSpeak(e) {
+  lastText = e.text;
+  speaking = true;
+  speakUntil = Date.now() + Math.min(14000, 1600 + e.text.split(/\s+/).length * 260);
+  wrap.classList.add('talking');
+  if (VOICE && 'speechSynthesis' in window) {
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(e.text);
+      u.lang = 'pt-BR';
+      u.rate = e.voice?.rate ?? 1.05;
+      u.pitch = e.voice?.pitch ?? 0.8;
+      u.volume = e.voice?.volume ?? 1;
+      const vs = speechSynthesis.getVoices();
+      const pt = vs.find((v) => /pt[-_]BR/i.test(v.lang)) || vs.find((v) => /^pt/i.test(v.lang));
+      if (pt) u.voice = pt;
+      speechSynthesis.speak(u);
+    } catch { /* ignore */ }
+  }
+}
+if ('speechSynthesis' in window) speechSynthesis.getVoices();
+
+/* desenho */
+const LEVELS = [0.4, 0.85, 0.55, 1, 0.65, 0.35, 0.9, 0.5];
+let blinkState = 0;
+function draw(now) {
+  const t = (now - t0) / 1000;
+  if (speaking && Date.now() > speakUntil) { speaking = false; wrap.classList.remove('talking'); }
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const cx = 260, cy = 250;
+
+  // corpo/cabeça
+  ctx.save();
+  const g = ctx.createLinearGradient(140, 60, 400, 470);
+  g.addColorStop(0, '#242460');
+  g.addColorStop(0.5, '#16163a');
+  g.addColorStop(1, '#0a0a1c');
+  rounded(140, 110, 240, 216, 46);
+  ctx.fillStyle = g;
+  ctx.shadowColor = speaking ? 'rgba(176,107,255,.85)' : 'rgba(110,110,210,.45)';
+  ctx.shadowBlur = speaking ? 46 : 24;
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = speaking ? 'rgba(200,150,255,.95)' : 'rgba(130,130,220,.55)';
+  ctx.shadowBlur = speaking ? 26 : 10;
+  ctx.stroke();
+  ctx.restore();
+
+  // antena
+  ctx.beginPath(); ctx.moveTo(cx, 110); ctx.lineTo(cx, 56);
+  ctx.strokeStyle = 'rgba(160,160,230,.75)'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
+  const pr = 15 + (speaking ? Math.sin(t * 16) * 4 : Math.sin(t * 2) * 1.5);
+  ctx.beginPath(); ctx.arc(cx, 46, pr, 0, Math.PI * 2);
+  ctx.fillStyle = speaking ? '#b06bff' : '#38f9d7';
+  ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 34; ctx.fill(); ctx.shadowBlur = 0;
+
+  // olhos
+  blinkState = (now % 4200 < 140) ? 1 : blinkState * 0.8;
+  const eyeY = 218 + Math.sin(t * 1.3) * 6;
+  const look = speaking ? { x: Math.sin(t * 3.1) * 10, y: Math.cos(t * 2.6) * 7 } : { x: Math.sin(t * 0.8) * 7, y: 0 };
+  eye(196, eyeY, blinkState, speaking, look);
+  eye(324, eyeY, blinkState, speaking, look);
+
+  // boca
+  ctx.beginPath();
+  const w = 118;
+  for (let i = 0; i <= w; i += 2) {
+    const x = cx - w / 2 + i;
+    const idx = Math.floor(i / 9) + Math.floor(t * 15);
+    const amp = speaking ? 6 + LEVELS[((idx % LEVELS.length) + LEVELS.length) % LEVELS.length] * 24 : 5;
+    const y = 292 + Math.sin((i / w) * Math.PI) * amp;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.strokeStyle = speaking ? '#38f9d7' : 'rgba(150,150,220,.55)';
+  ctx.shadowColor = speaking ? '#38f9d7' : 'transparent'; ctx.shadowBlur = speaking ? 26 : 0;
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  // respiração
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  rounded(140, 110, 240, 216, 46);
+  ctx.strokeStyle = 'rgba(176,107,255,.4)';
+  ctx.lineWidth = 1 + Math.abs(Math.sin(t * 1.6)) * 2;
+  ctx.stroke();
+  ctx.restore();
+
+  requestAnimationFrame(draw);
+}
+
+function eye(x, y, blink, talking, look) {
+  ctx.save();
+  const h = 38 * (1 - blink);
+  ctx.beginPath();
+  ctx.ellipse(x, y, 30, Math.max(3, h), 0, 0, Math.PI * 2);
+  const gg = ctx.createRadialGradient(x + look.x * 0.3, y + look.y * 0.3, 3, x, y, 34);
+  gg.addColorStop(0, '#ffffff');
+  gg.addColorStop(0.5, talking ? '#c79bff' : '#5ff5da');
+  gg.addColorStop(1, 'rgba(12,12,34,.35)');
+  ctx.fillStyle = gg;
+  ctx.shadowColor = talking ? '#b06bff' : '#38f9d7';
+  ctx.shadowBlur = 32;
+  ctx.fill();
+  if (talking) {
+    ctx.beginPath();
+    ctx.arc(x + look.x, y + look.y, 10, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(8,6,20,.8)'; ctx.shadowBlur = 0; ctx.fill();
+  }
+  ctx.restore();
+}
+
+function rounded(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

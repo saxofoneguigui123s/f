@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI VS STREAMER — Painel</title>
+<link rel="stylesheet" href="/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='78' font-size='80'>🤖</text></svg>" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="dot" id="liveDot"></div>
+      <div>
+        <h1>AI vs Streamer</h1>
+        <small>O CHAT DECIDE QUEM O ROBÔ ATRAPALHA</small>
+      </div>
+    </div>
+    <div class="pills">
+      <span class="pill" id="pillChat"><i class="led"></i><b>Chat</b> <span>-</span></span>
+      <span class="pill" id="pillAI"><i class="led"></i><b>IA</b> <span>-</span></span>
+      <span class="pill" id="pillMode"><b>Modo</b> <span>-</span></span>
+      <span class="pill" id="pillLevel"><b>Fase</b> <span>-</span></span>
+    </div>
+    <div class="row tight" style="margin-left:8px">
+      <button class="primary" id="btnStart">▶ Iniciar rodada</button>
+      <button class="danger" id="btnStop">⏹ Parar</button>
+      <button class="ghost" id="btnPause">⏸ Pausar robô</button>
+    </div>
+  </header>
+
+  <!-- ============ VISÃO GERAL ============ -->
+  <div class="grid cols-3">
+
+    <!-- FASE -->
+    <div class="card">
+      <h2>Fase atual <span class="spacer"></span><span class="badge idle" id="phaseKind">parado</span></h2>
+      <div class="phase">
+        <div class="timer" id="timer">--:--</div>
+        <div class="meta">
+          <span class="badge streamer" id="modeBadge">modo: —</span>
+          <span style="font-size:12px;color:var(--muted)" id="levelText">Fase 1 do jogo</span>
+        </div>
+      </div>
+      <div class="progress"><i id="phaseProgress" style="width:0%"></i></div>
+      <div class="row" style="margin-top:14px">
+        <button class="ai" id="btnTalk">🗣️ Falar agora</button>
+        <button id="btnNextLevel">✅ Passar de fase</button>
+        <button id="btnSkipVote">🗳️ Antecipar votação</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="chat" data-force="chat">Forçar modo CHAT</button>
+        <button class="streamer" data-force="streamer">Forçar modo STREAMER</button>
+        <button class="ghost" id="btnMute">🔇 Calar 45s</button>
+      </div>
+      <h3>Ritmo do robô</h3>
+      <div class="kv">
+        <span class="k">Última fala</span><span id="kLast">—</span>
+        <span class="k">Falas no total</span><span id="kLines">0</span>
+        <span class="k">Na fila</span><span id="kQueue">0</span>
+        <span class="k">Silenciado até</span><span id="kSilence">—</span>
+      </div>
+    </div>
+
+    <!-- VOTAÇÃO -->
+    <div class="card">
+      <h2>Votação <span class="spacer"></span><span class="badge idle" id="voteBadge">fechada</span></h2>
+      <div class="votebar chat">
+        <span class="label">💬 CHAT</span>
+        <span class="track"><span class="fill" id="fillChat"></span></span>
+        <span class="num" id="numChat">0</span>
+      </div>
+      <div class="votebar streamer">
+        <span class="label">😈 STREAMER</span>
+        <span class="track"><span class="fill" id="fillStreamer"></span></span>
+        <span class="num" id="numStreamer">0</span>
+      </div>
+      <div class="quorum" id="voteInfo">A votação abre nos últimos segundos de cada fase. !1 = falar com o chat · !2 = atrapalhar o streamer.</div>
+      <div class="row" style="margin-top:10px">
+        <button class="ghost" id="btnVoteOpen">Abrir votação</button>
+        <button class="ghost" id="btnVoteClose">Fechar agora</button>
+      </div>
+      <div class="row tight" style="margin-top:6px">
+        <button class="chat" data-testvote="chat">+ voto chat (teste)</button>
+        <button class="streamer" data-testvote="streamer">+ voto streamer (teste)</button>
+      </div>
+      <h3>Votos ao vivo</h3>
+      <div class="vote-log" id="voteLog"></div>
+      <h3>Resultado anterior</h3>
+      <div class="kv" id="lastResult"><span class="k">—</span><span>nenhuma votação ainda</span></div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="card">
+      <h2>Chat ao vivo <span class="spacer"></span><span class="pill" id="chatRate"><b>0</b> msg/min</span></h2>
+      <div class="feed" id="feed"></div>
+      <div class="kv" style="margin-top:12px">
+        <span class="k">Clima</span><span id="kMood">—</span>
+        <span class="k">Tópicos</span><span id="kTopics">—</span>
+        <span class="k">Mensagens lidas</span><span id="kRead">0</span>
+      </div>
+      <h3>Falar no chat da Twitch</h3>
+      <div class="inline">
+        <input id="sayInput" placeholder="mensagem que o robô manda no chat (precisa de token)" />
+        <button class="ghost" id="btnSay">Enviar</button>
+      </div>
+      <h3>Simular mensagem (teste)</h3>
+      <div class="inline">
+        <input id="simUser" style="max-width:120px" value="tester" />
+        <input id="simInput" placeholder="ex: !2 atrapalha ele / robo, conta uma piada?" />
+        <button class="ghost" id="btnSim">Injetar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ROBÔ ============ -->
+  <div class="card" id="speechCard" style="margin-top:16px">
+    <h2>Boca do robô
+      <span class="spacer"></span>
+      <span class="switch" style="margin:0"><input type="checkbox" id="voiceToggle" checked /> <label for="voiceToggle">ouvir a voz neste navegador</label></span>
+    </h2>
+    <div class="speech">
+      <div class="who" id="speechWho">última fala</div>
+      <div class="line">—</div>
+    </div>
+    <h3>Últimas falas</h3>
+    <div class="history" id="speechHistory"></div>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div class="tabs">
+    <button class="active" data-tab="setup">🚀 Começar</button>
+    <button data-tab="ia">🧠 IA</button>
+    <button data-tab="prompt">📜 System Prompt</button>
+    <button data-tab="config">⚙️ Configuração</button>
+    <button data-tab="logs">📡 Logs</button>
+  </div>
+
+  <!-- SETUP -->
+  <div class="tabpane active" id="tab-setup">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Como colocar no ar (3 minutos)</h2>
+        <div class="hint">O robô funciona <b>sem nenhuma configuração</b>: já vem com cérebro local e um chat simulado para você testar. Configure aos poucos.</div>
+        <ol class="steps">
+          <li><b>Teste agora:</b> clique em <b>Falar agora</b> e <b>Antecipar votação</b>. Se quiser um chat cheio de gente, reinicie com <span class="mono">SIM=1</span> (<span class="mono">npm run demo</span>).</li>
+          <li><b>Chat da Twitch:</b> coloque o nome do seu canal em <span class="mono">TWITCH_CHANNEL</span> no arquivo <span class="mono">.env</span> (ou na aba Configuração) e reinicie. Só leitura já funciona sem token.</li>
+          <li><b>Robô escrevendo no chat:</b> gere um token em <span class="mono">twitchtokengenerator.com</span> (Bot Chat Token, escopos <span class="mono">chat:read chat:edit</span>) e preencha <span class="mono">TWITCH_OAUTH</span> + <span class="mono">TWITCH_USERNAME</span>.</li>
+          <li><b>IA de verdade:</b> aba <b>IA</b>, escolha um provedor (Groq tem plano grátis) e cole a chave. Ou rode <span class="mono">Ollama</span> na sua máquina, sem custo e sem chave.</li>
+          <li><b>OBS:</b> adicione duas Fontes de Navegador — <span class="mono">http://localhost:8787/overlay.html</span> (1920×1080, fundo transparente) e <span class="mono">/robo.html</span> (rosto do robô).</li>
+          <li><b>Volume:</b> o robô fala pelo navegador do overlay. No OBS, marque <b>Controlar áudio via OBS</b> na fonte do overlay para a voz entrar na live.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h2>Como o jogo funciona</h2>
+        <p style="font-size:13.5px;line-height:1.6;color:#cfcfe4">
+          A cada <b id="setupPhase">600</b> segundos, o chat vota quem o robô atrapalha:
+          o próprio <b>streamer</b> (atrapalhando a jogatina) ou o <b>chat</b> (conversando com o público).
+          O robô começa atrapalhando o streamer, como no formato original.
+        </p>
+        <div class="grid cols-2" style="gap:10px">
+          <div class="card" style="background:rgba(56,249,215,.07)">
+            <b style="color:var(--chat)">!1 — falar com o chat</b>
+            <p style="font-size:12.5px;color:var(--muted);margin:6px 0 0">O robô conversa com os espectadores, lê e responde mensagens, comenta os memes.</p>
+          </div>
+          <div class="card" style="background:rgba(255,59,107,.07)">
+            <b style="color:var(--streamer)">!2 — atrapalhar o streamer</b>
+            <p style="font-size:12.5px;color:var(--muted);margin:6px 0 0">O robô fala com ele na hora errada, de propósito, pra ele morrer no jogo.</p>
+          </div>
+        </div>
+        <h3>Outros comandos do chat</h3>
+        <div class="kv">
+          <span class="k mono">robo, &lt;pergunta&gt;</span><span>o robô lê e responde</span>
+          <span class="k mono">!calaboca</span><span>cala o robô por 45s</span>
+          <span class="k mono">!regras</span><span>o robô explica o formato</span>
+          <span class="k mono">!passou</span><span>mod/vip marca fase concluída</span>
+        </div>
+        <h3>Páginas</h3>
+        <div class="row">
+          <a class="btn" href="/overlay.html" target="_blank">Overlay (OBS)</a>
+          <a class="btn" href="/robo.html" target="_blank">Rosto do robô</a>
+          <a class="btn" href="/answer?q=o+robo+e+melhor+que+o+streamer%3F" target="_blank">IA responde</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IA -->
+  <div class="tabpane" id="tab-ia">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Cérebro do robô</h2>
+        <div class="hint">Sem chave configurada o robô usa o <b>cérebro local</b> (falas prontas, funciona offline). Com IA configurada, ele <b>lê o chat</b> e <b>cria as falas na hora</b> com o seu system prompt.</div>
+        <label class="field"><span>Provedor</span>
+          <select id="aiProvider"></select>
+          <small>Ollama/LM Studio rodam de graça na sua máquina, sem chave.</small>
+        </label>
+        <label class="field"><span>Modelo</span>
+          <div class="inline">
+            <input id="aiModel" placeholder="ex: llama-3.3-70b-versatile" />
+            <button class="ghost" id="btnModels">Listar</button>
+          </div>
+        </label>
+        <label class="field"><span>Chave de API</span><input id="aiKey" type="password" placeholder="cole aqui a chave (ou use variável de ambiente)" /></label>
+        <label class="field"><span>Base URL (opcional)</span><input id="aiBaseUrl" placeholder="https://api.groq.com/openai/v1" /></label>
+        <label class="field"><span>Temperatura (criatividade): <b id="tempOut">0.95</b></span>
+          <input type="range" id="aiTemp" min="0" max="1.5" step="0.05" value="0.95" />
+        </label>
+        <div class="switch"><input type="checkbox" id="aiInterpret" /> <label for="aiInterpret">IA interpreta o chat e resolve votos em linguagem natural</label></div>
+        <div class="row">
+          <button class="primary" id="btnSaveAI">Salvar</button>
+          <button class="ai" id="btnTestAI">Testar conexão</button>
+          <span class="pill" id="aiStatusPill"><i class="led"></i><span>—</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Pergunte ao robô (teste)</h2>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:0">Mesma resposta que ele daria na live. Usa o system prompt atual.</p>
+        <div class="inline">
+          <input id="askInput" placeholder="o robô é melhor que o streamer?" />
+          <button class="primary" id="btnAsk">Perguntar</button>
+        </div>
+        <div class="speech" id="askOut" style="margin-top:12px"><div class="who">resposta</div><div class="line">—</div></div>
+        <h3>Diagnóstico</h3>
+        <div class="kv" id="aiDiag"><span class="k">—</span><span>sem dados</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROMPT -->
+  <div class="tabpane" id="tab-prompt">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>System prompt do robô</h2>
+        <div class="hint">Isto é o que define a personalidade dele. Variáveis: <span class="mono">{{robot_name}}</span>, <span class="mono">{{streamer_name}}</span>, <span class="mono">{{game}}</span>, <span class="mono">{{level}}</span>, <span class="mono">{{mode}}</span>, <span class="mono">{{time_left}}</span>, <span class="mono">{{chat_digest}}</span>, <span class="mono">{{chat_recent}}</span>, <span class="mono">{{streamer_context}}</span>, <span class="mono">{{vote_tally}}</span>, <span class="mono">{{total_votes}}</span>, <span class="mono">{{language}}</span>.</div>
+        <textarea class="prompt" id="promptBox" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="btnSavePrompt">💾 Salvar system prompt</button>
+          <button class="ghost" id="btnResetPrompt">↩︎ Restaurar padrão</button>
+          <button class="ghost" id="btnPreviewPrompt">👁️ Ver prompt final</button>
+        </div>
+        <small style="color:var(--muted);font-size:11.5px">Salvo em <span class="mono">data/prompt.md</span> e aplicado na hora, sem reiniciar. Você também pode editar <span class="mono">prompts/system.md</span> direto no editor — o servidor detecta e recarrega.</small>
+        <h3>Histórico de versões</h3>
+        <div class="history" id="promptHistory"></div>
+      </div>
+      <div class="card">
+        <h2>Prompt final renderizado</h2>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:0">Exatamente o texto que a IA recebe agora (com o chat do momento já dentro).</p>
+        <textarea class="prompt" id="promptPreview" spellcheck="false" readonly></textarea>
+        <h3>Blocos de modo</h3>
+        <label class="field"><span>Modo CHAT (arquivo prompts/mode-chat.md)</span><textarea id="modeChat" spellcheck="false"></textarea></label>
+        <label class="field"><span>Modo STREAMER (arquivo prompts/mode-streamer.md)</span><textarea id="modeStreamer" spellcheck="false"></textarea></label>
+        <div class="row">
+          <button class="ghost" id="btnSaveModes">Salvar blocos de modo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="tabpane" id="tab-config">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>Live e robô</h2>
+        <label class="field"><span>Nome do robô</span><input id="cfgRobotName" /></label>
+        <label class="field"><span>Nome do streamer</span><input id="cfgStreamerName" /></label>
+        <label class="field"><span>Jogo</span><input id="cfgGame" placeholder="ex: Hollow Knight" /></label>
+        <label class="field"><span>Contexto do streamer (a IA usa isso nas piadas)</span><textarea id="cfgContext" style="min-height:80px" placeholder="ex: joga desde 2019, tem medo de aranha, odeia backseat, é ruim em pulos"></textarea></label>
+        <h3>Rodada</h3>
+        <div class="grid cols-2" style="gap:10px">
+          <label class="field"><span>Duração da fase (s)</span><input id="cfgPhase" type="number" min="30" /></label>
+          <label class="field"><span>Janela de votação (s)</span><input id="cfgVoteWindow" type="number" min="10" /></label>
+          <label class="field"><span>Modo inicial</span>
+            <select id="cfgStartMode"><option value="streamer">Atrapalhar o streamer</option><option value="chat">Conversar com o chat</option></select>
+          </label>
+          <label class="field"><span>Votos mínimos p/ mudar</span><input id="cfgMinVotes" type="number" min="1" /></label>
+        </div>
+        <h3>Fontes de chat</h3>
+        <label class="field"><span>Canal da Twitch</span><input id="cfgTwitch" placeholder="seu_canal" /></label>
+        <label class="field"><span>Usuário do bot (Twitch)</span><input id="cfgTwitchUser" placeholder="meu_bot" /></label>
+        <label class="field"><span>Token OAuth da Twitch</span><input id="cfgTwitchToken" type="password" placeholder="oauth:..." /></label>
+        <label class="field"><span>Vídeo do YouTube (opcional)</span><input id="cfgYoutube" placeholder="id do vídeo" /></label>
+        <div class="switch"><input type="checkbox" id="cfgSim" /> <label for="cfgSim">Ligar chat simulado (demo)</label></div>
+        <div class="row"><button class="primary" id="btnSaveConfig">Salvar configuração</button><button class="ghost" id="btnReloadConfig">Recarregar</button></div>
+      </div>
+      <div class="card">
+        <h2>Pesos da votação e ritmo</h2>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:0">Peso = quantos votos vale cada pessoa. Bits também contam (ataque do caos).</p>
+        <div class="grid cols-2" style="gap:10px">
+          <label class="field"><span>Viewer</span><input id="wViewer" type="number" min="1" /></label>
+          <label class="field"><span>Inscrito</span><input id="wSub" type="number" min="1" /></label>
+          <label class="field"><span>VIP</span><input id="wVip" type="number" min="1" /></label>
+          <label class="field"><span>Moderador</span><input id="wMod" type="number" min="1" /></label>
+          <label class="field"><span>Streamer</span><input id="wBroadcaster" type="number" min="1" /></label>
+          <label class="field"><span>Bits por ponto</span><input id="wBits" type="number" min="1" /></label>
+        </div>
+        <h3>Ritmo de fala</h3>
+        <div class="grid cols-2" style="gap:10px">
+          <label class="field"><span>Intervalo mínimo (s)</span><input id="cMinGap" type="number" min="1" /></label>
+          <label class="field"><span>Chance de resposta no modo chat</span><input id="cReplyChance" type="number" min="0" max="1" step="0.05" /></label>
+          <label class="field"><span>Falas/min no modo chat</span><input id="cMaxPerMin" type="number" min="1" /></label>
+          <label class="field"><span>Intervalo no modo streamer (s)</span>
+            <div class="inline tight"><input id="cStreamerMin" type="number" min="5" /><span>→</span><input id="cStreamerMax" type="number" min="10" /></div>
+          </label>
+        </div>
+        <h3>Voz</h3>
+        <div class="switch"><input type="checkbox" id="cVoiceBrowser" /> <label for="cVoiceBrowser">Falar no navegador (overlay/OBS)</label></div>
+        <div class="grid cols-3" style="gap:10px">
+          <label class="field"><span>Velocidade</span><input id="cVoiceRate" type="number" min="0.5" max="2" step="0.05" /></label>
+          <label class="field"><span>Tom</span><input id="cVoicePitch" type="number" min="0.1" max="2" step="0.05" /></label>
+          <label class="field"><span>Volume</span><input id="cVoiceVolume" type="number" min="0" max="1" step="0.05" /></label>
+        </div>
+        <div class="switch"><input type="checkbox" id="cServerTts" /> <label for="cServerTts">Usar TTS do servidor (linha de comando)</label></div>
+        <label class="field"><span>Comando TTS do servidor</span><input id="cServerTtsCmd" placeholder='ex: espeak-ng -v pt-br -s 150 {text}' /><small>Use <span class="mono">{text}</span> onde a fala entra. Ex.: <span class="mono">say "{text}"</span> (macOS), <span class="mono">powershell -c "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{text}')"</span> (Windows), <span class="mono">piper -m pt_BR.onnx -f - | aplay</span>.</small></label>
+        <div class="row"><button class="primary" id="btnSaveAdvanced">Salvar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGS -->
+  <div class="tabpane" id="tab-logs">
+    <div class="card">
+      <h2>Tudo o que acontece na live <span class="spacer"></span><button class="ghost" id="btnClearLogs">Limpar</button></h2>
+      <div class="logs" id="logs"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-holder" id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>

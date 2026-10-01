@@ -1,0 +1,25 @@
+{
+  "name": "ai-vs-streamer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Robô de IA que conversa com o chat ou atrapalha o streamer — decidido por votação do chat a cada 600 segundos. Integra Twitch + YouTube + IA (LLM) + TTS.",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "demo": "SIM=1 node src/index.js",
+    "demo:twitch": "SIM=1 TWITCH_CHANNEL= node src/index.js",
+    "votes": "node scripts/vote-report.js",
+    "self-test": "node scripts/self-test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "youtube-chat": "^2.2.0"
+  }
+}

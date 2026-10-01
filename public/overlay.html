@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>AI vs Streamer — Overlay (OBS)</title>
+<style>
+  :root { --chat:#38f9d7; --streamer:#ff3b6b; --ai:#b06bff; --warn:#ffcc4d; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; background:transparent; overflow:hidden;
+    font-family:'Segoe UI', system-ui, sans-serif; color:#fff; user-select:none; }
+  .stage { position:relative; width:100vw; height:100vh; }
+  .scale { position:absolute; inset:0; }
+
+  /* ---------- HUD superior ---------- */
+  .hud { position:absolute; top:26px; left:26px; display:flex; gap:12px; align-items:stretch; }
+  .chip {
+    background:rgba(8,8,18,.72); border:1px solid rgba(255,255,255,.14); border-radius:14px;
+    padding:10px 16px; backdrop-filter:blur(10px); display:flex; flex-direction:column; justify-content:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  .chip .lbl { font-size:12px; letter-spacing:.18em; text-transform:uppercase; opacity:.6; }
+  .chip .val { font-size:22px; font-weight:800; letter-spacing:.04em; }
+  #timerChip .val { font-family:'JetBrains Mono',Consolas,monospace; font-size:34px; line-height:1; }
+  #modeChip { border-color:currentColor; }
+  #modeChip.chat { color:var(--chat); }
+  #modeChip.streamer { color:var(--streamer); }
+  #levelChip .val { color:#fff; }
+  .bar { position:absolute; bottom:0; left:0; height:4px; width:0%; background:linear-gradient(90deg,var(--chat),var(--ai),var(--streamer)); transition:width .9s linear; }
+
+  /* ---------- votação ---------- */
+  #votePanel {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.94);
+    width:820px; max-width:88vw; opacity:0; transition:.35s cubic-bezier(.22,1,.36,1); pointer-events:none;
+    background:rgba(6,6,14,.82); border:1px solid rgba(255,255,255,.14); border-radius:22px;
+    padding:26px 30px 22px; backdrop-filter:blur(14px); box-shadow:0 24px 70px rgba(0,0,0,.6);
+  }
+  #votePanel.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  #votePanel h3 { margin:0 0 18px; font-size:22px; letter-spacing:.14em; text-transform:uppercase; text-align:center; }
+  #votePanel h3 b { color:var(--warn); font-family:'JetBrains Mono',monospace; }
+  .row { display:grid; grid-template-columns:150px 1fr 90px; gap:14px; align-items:center; margin-bottom:12px; }
+  .row .name { font-weight:800; font-size:17px; letter-spacing:.05em; }
+  .row .track { height:30px; background:rgba(255,255,255,.08); border-radius:99px; overflow:hidden; }
+  .row .fill { height:100%; width:0; border-radius:99px; transition:width .45s cubic-bezier(.22,1,.36,1); }
+  .row.chat .fill { background:linear-gradient(90deg,#12a58d,var(--chat)); box-shadow:0 0 22px rgba(56,249,215,.5); }
+  .row.streamer .fill { background:linear-gradient(90deg,#a8123a,var(--streamer)); box-shadow:0 0 22px rgba(255,59,107,.5); }
+  .row .n { text-align:right; font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .hint { text-align:center; font-size:15px; opacity:.75; margin-top:6px; }
+  .hint b { color:#fff; }
+
+  /* ---------- robô + legenda ---------- */
+  #robotBox { position:absolute; left:36px; bottom:36px; display:flex; align-items:flex-end; gap:16px; }
+  #faceWrap { width:150px; height:150px; filter:drop-shadow(0 0 26px rgba(176,107,255,.55)); }
+  #faceWrap.speaking { animation:bob .9s ease-in-out infinite alternate; }
+  @keyframes bob { from { transform:translateY(0) scale(1); } to { transform:translateY(-6px) scale(1.03); } }
+
+  #subtitle {
+    max-width:1080px; background:rgba(8,8,18,.8); border:1px solid rgba(176,107,255,.4);
+    border-left:5px solid var(--ai); border-radius:18px; padding:18px 24px; backdrop-filter:blur(12px);
+    box-shadow:0 16px 50px rgba(0,0,0,.55); opacity:0; transform:translateY(14px); transition:.28s ease;
+  }
+  #subtitle.show { opacity:1; transform:none; }
+  #subtitle .who { font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:var(--ai); margin-bottom:6px; font-weight:700; }
+  #subtitle .txt { font-size:30px; line-height:1.28; font-weight:600; text-shadow:0 2px 12px rgba(0,0,0,.6); }
+  #subtitle.streamer { border-color:rgba(255,59,107,.45); border-left-color:var(--streamer); }
+  #subtitle.streamer .who { color:var(--streamer); }
+
+  /* ---------- chat ---------- */
+  #chatFeed { position:absolute; right:26px; bottom:150px; width:430px; display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+  .cm {
+    background:rgba(8,8,18,.62); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:8px 13px;
+    font-size:19px; line-height:1.3; max-width:100%; backdrop-filter:blur(6px); animation:in .22s ease;
+  }
+  .cm b { color:var(--chat); }
+  .cm .bits { color:var(--warn); font-weight:800; }
+  @keyframes in { from { opacity:0; transform:translateX(18px); } to { opacity:1; transform:none; } }
+
+  /* ---------- aviso de modo ---------- */
+  #modeFlash {
+    position:absolute; inset:0; display:grid; place-items:center; opacity:0; pointer-events:none;
+    background:radial-gradient(circle at 50% 50%, rgba(176,107,255,.25), transparent 60%);
+    transition:.5s ease;
+  }
+  #modeFlash.show { opacity:1; }
+  #modeFlash .big { font-size:74px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; text-shadow:0 8px 40px rgba(0,0,0,.7); }
+  #modeFlash.chat .big { color:var(--chat); }
+  #modeFlash.streamer .big { color:var(--streamer); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="hud">
+    <div class="chip" id="timerChip"><span class="lbl">Fase <span id="level">1</span></span><span class="val" id="timer">10:00</span><div class="bar" id="bar"></div></div>
+    <div class="chip" id="modeChip"><span class="lbl">Modo do robô</span><span class="val" id="modeText">—</span></div>
+    <div class="chip" id="levelChip"><span class="lbl">Votos</span><span class="val" id="votes">0</span></div>
+  </div>
+
+  <div id="votePanel">
+    <h3>O CHAT DECIDE — <b id="voteTimer">60s</b></h3>
+    <div class="row chat">
+      <span class="name">💬 FALAR COM O CHAT</span>
+      <span class="track"><span class="fill" id="fChat"></span></span>
+      <span class="n" id="nChat">0</span>
+    </div>
+    <div class="row streamer">
+      <span class="name">😈 ATRAPALHAR O STREAMER</span>
+      <span class="track"><span class="fill" id="fStreamer"></span></span>
+      <span class="n" id="nStreamer">0</span>
+    </div>
+    <div class="hint">digite <b>!1</b> para o robô falar com o chat · <b>!2</b> para o robô atrapalhar o streamer</div>
+  </div>
+
+  <div id="robotBox">
+    <div id="faceWrap"><canvas id="face" width="300" height="300"></canvas></div>
+    <div id="subtitle"><div class="who" id="subWho">VEX</div><div class="txt" id="subText"></div></div>
+  </div>
+
+  <div id="chatFeed"></div>
+  <div id="modeFlash"><div class="big" id="flashText"></div></div>
+</div>
+
+<script>
+'use strict';
+const params = new URLSearchParams(location.search);
+const VOICE = params.get('voice') !== '0';       // fala em voz alta (padrão: sim)
+const SHOW_CHAT = params.get('chat') !== '0';
+const SCALE = Number(params.get('scale') || 1);
+if (SCALE !== 1) document.querySelector('.stage').style.transform = `scale(${SCALE})`;
+
+const $ = (s) => document.querySelector(s);
+let subtitleTimer = null, flashTimer = null, robotName = 'VEX';
+
+/* ---------------- WebSocket ---------------- */
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onmessage = (evt) => {
+    let d; try { d = JSON.parse(evt.data); } catch { return; }
+    if (d.type === 'state' && d.state) render(d.state);
+    if (d.type === 'hello' && d.state) render(d.state);
+    if (d.type === 'event') handle(d.event);
+  };
+  ws.onclose = () => setTimeout(connect, 1200);
+}
+connect();
+
+/* ---------------- estado ---------------- */
+function render(s) {
+  const idle = !s.running || s.phase.kind === 'idle';
+  const left = idle ? 0 : s.phase.secondsLeft;
+  $('#timer').textContent = fmt(left);
+  $('#level').textContent = s.level;
+  $('#modeText').textContent = s.mode === 'chat' ? 'conversar com o CHAT' : 'atrapalhar o STREAMER';
+  $('#modeChip').className = `chip ${s.mode}`;
+  const total = s.config.phaseSeconds || 600;
+  $('#bar').style.width = idle ? '0%' : `${100 - (left / total) * 100}%`;
+  const tally = s.vote.tally || { chat: 0, streamer: 0 };
+  const vt = Math.max(1, tally.chat + tally.streamer);
+  $('#fChat').style.width = `${(tally.chat / vt) * 100}%`;
+  $('#fStreamer').style.width = `${(tally.streamer / vt) * 100}%`;
+  $('#nChat').textContent = tally.chat;
+  $('#nStreamer').textContent = tally.streamer;
+  $('#votes').textContent = s.vote.total || 0;
+  $('#votePanel').classList.toggle('show', !!s.vote.open);
+  $('#voteTimer').textContent = `${s.vote.secondsLeft || 0}s`;
+  robotName = s.robot?.name || 'VEX';
+  $('#subWho').textContent = robotName;
+}
+
+/* ---------------- eventos ---------------- */
+function handle(e) {
+  if (e.type === 'speak') speak(e);
+  if (e.type === 'chat-message' && SHOW_CHAT) pushChat(e.message);
+  if (e.type === 'mode-change') flash(e.mode);
+  if (e.type === 'vote-open') flashVote();
+}
+
+function speak(e) {
+  const sub = $('#subtitle');
+  $('#subText').textContent = e.text;
+  sub.className = `show ${e.mode === 'streamer' ? 'streamer' : ''}`;
+  $('#faceWrap').classList.add('speaking');
+  clearTimeout(subtitleTimer);
+  const ms = Math.min(14000, 1800 + e.text.split(/\s+/).length * 260);
+  subtitleTimer = setTimeout(() => {
+    sub.classList.remove('show');
+    $('#faceWrap').classList.remove('speaking');
+  }, ms);
+  if (VOICE) tts(e.text, e.voice);
+}
+
+function tts(text, voice) {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'pt-BR';
+    u.rate = voice?.rate ?? 1.05;
+    u.pitch = voice?.pitch ?? 0.8;
+    u.volume = voice?.volume ?? 1;
+    const vs = speechSynthesis.getVoices();
+    const pt = vs.find((v) => /pt[-_]BR/i.test(v.lang)) || vs.find((v) => /^pt/i.test(v.lang));
+    if (pt) u.voice = pt;
+    speechSynthesis.speak(u);
+  } catch { /* ignore */ }
+}
+if ('speechSynthesis' in window) speechSynthesis.getVoices();
+
+function pushChat(m) {
+  if (!m || m.text?.startsWith('!')) { /* votos aparecem no painel, não no overlay */ }
+  const feed = $('#chatFeed');
+  const div = document.createElement('div');
+  div.className = 'cm';
+  div.innerHTML = `<b>${esc(m.display || m.user)}</b>: ${esc(m.text)}${m.bits ? ` <span class="bits">+${m.bits}</span>` : ''}`;
+  feed.appendChild(div);
+  while (feed.children.length > 9) feed.removeChild(feed.firstChild);
+  setTimeout(() => div.remove(), 25000);
+}
+
+function flash(mode) {
+  const f = $('#modeFlash');
+  f.className = `show ${mode}`;
+  $('#flashText').textContent = mode === 'chat' ? '💬 O CHAT MANDA' : '😈 CAOS LIBERADO';
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => f.classList.remove('show'), 2200);
+}
+function flashVote() { flash('chat'); $('#flashText').textContent = '🗳️ VOTAÇÃO ABERTA'; }
+
+/* ---------------- rosto do robô ---------------- */
+const cv = $('#face');
+const ctx = cv.getContext('2d');
+let blink = 0, t0 = performance.now();
+
+function drawFace(now) {
+  const t = (now - t0) / 1000;
+  const speaking = $('#faceWrap').classList.contains('speaking');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const cx = 150, cy = 150;
+
+  // cabeça
+  ctx.save();
+  const g = ctx.createLinearGradient(60, 40, 240, 260);
+  g.addColorStop(0, '#20204a');
+  g.addColorStop(1, '#0d0d1e');
+  roundRect(60, 66, 180, 152, 34);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = speaking ? 'rgba(176,107,255,.95)' : 'rgba(140,140,220,.55)';
+  ctx.shadowColor = speaking ? 'rgba(176,107,255,.9)' : 'rgba(120,120,220,.5)';
+  ctx.shadowBlur = speaking ? 30 + Math.sin(t * 12) * 10 : 16;
+  ctx.stroke();
+  ctx.restore();
+
+  // antena
+  ctx.beginPath(); ctx.moveTo(150, 66); ctx.lineTo(150, 34);
+  ctx.strokeStyle = 'rgba(160,160,230,.7)'; ctx.lineWidth = 4; ctx.stroke();
+  ctx.beginPath(); ctx.arc(150, 28, 10 + (speaking ? Math.sin(t * 14) * 2 : 0), 0, Math.PI * 2);
+  ctx.fillStyle = speaking ? '#b06bff' : '#38f9d7'; ctx.fill();
+
+  // olhos
+  blink = (now % 3600 < 130) ? 1 : blink * 0.82;
+  const eyeY = 132 + Math.sin(t * 1.4) * 3;
+  drawEye(118, eyeY, blink, t, speaking);
+  drawEye(182, eyeY, blink, t, speaking);
+
+  // boca (espectro quando falando)
+  ctx.beginPath();
+  const mouthW = 66;
+  const levels = [0.5, 0.9, 0.6, 1, 0.7, 0.45, 0.8];
+  for (let i = 0; i <= mouthW; i++) {
+    const x = 150 - mouthW / 2 + i;
+    const amp = speaking ? 4 + levels[(Math.floor(i / 9) + Math.floor(t * 14)) % levels.length] * 13 : 3;
+    const y = 182 + Math.sin((i / mouthW) * Math.PI) * amp;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = speaking ? '#38f9d7' : 'rgba(150,150,220,.5)';
+  ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  requestAnimationFrame(drawFace);
+}
+
+function drawEye(x, y, blink, time, speaking) {
+  ctx.save();
+  ctx.beginPath();
+  const h = 26 * (1 - blink);
+  ctx.ellipse(x, y, 20, Math.max(2, h), 0, 0, Math.PI * 2);
+  const gg = ctx.createRadialGradient(x, y, 2, x, y, 22);
+  gg.addColorStop(0, speaking ? '#ffffff' : '#dff');
+  gg.addColorStop(0.55, speaking ? '#b06bff' : '#38f9d7');
+  gg.addColorStop(1, 'rgba(10,10,30,.25)');
+  ctx.fillStyle = gg; ctx.fill();
+  ctx.shadowColor = speaking ? '#b06bff' : '#38f9d7';
+  ctx.shadowBlur = 22;
+  ctx.fill();
+  if (speaking) {
+    const px = x + Math.sin(time * 3) * 6, py = y + Math.cos(time * 2.4) * 4;
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(10,6,20,.75)'; ctx.shadowBlur = 0; ctx.fill();
+  }
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function fmt(sec) { const s = Math.max(0, Math.floor(sec || 0)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+requestAnimationFrame(drawFace);
+</script>
+</body>
+</html>
