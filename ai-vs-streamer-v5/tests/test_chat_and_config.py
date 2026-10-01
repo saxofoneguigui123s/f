@@ -196,3 +196,52 @@ class WebPanelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DashboardTests(unittest.TestCase):
+    """O dashboard precisa carregar e mostrar o estado real (é o que o streamer olha)."""
+
+    def setUp(self):
+        from tests.helpers import FakeProvider
+        from web_panel import WebPanel
+
+        config = load_config(os.path.join(BASE_DIR, "config.json"))
+        config["provider"] = "offline"
+        config["twitch"]["enabled"] = False
+        config["tts"]["enabled"] = False
+        config["voice"]["enabled"] = False
+        config["ai"]["memory_file"] = os.path.join(BASE_DIR, "data", "mem_dash.json")
+        self.app = AIvsStreamer(config, simulate=True, use_web=False, logger=lambda *a: None)
+        self.app.chat.logger = lambda *a: None
+        self.app.ai.provider = FakeProvider("Fala, chat!")
+        self.app.history.add("AI", "mensagem de teste", "reply")
+        self.panel = WebPanel(self.app, config)
+        self.client = self.panel.flask.test_client()
+
+    def test_dashboard_carrega(self):
+        html = self.client.get("/admin").get_data(as_text=True)
+        self.assertIn("AI vs Streamer", html)
+        self.assertIn("/api/status", html)
+        self.assertIn("/api/history", html)
+
+    def test_historico_aparece_na_api(self):
+        data = self.client.get("/api/history").get_json()
+        self.assertTrue(any("mensagem de teste" in e["text"] for e in data["entries"]))
+
+    def test_botao_falar_devolve_se_foi_pro_chat(self):
+        r = self.client.post("/api/command", json={"command": "say", "text": "oi"}).get_json()
+        self.assertTrue(r["ok"])
+        self.assertIn("sent_to_chat", r)
+
+    def test_falar_sem_texto_e_recusado(self):
+        r = self.client.post("/api/command", json={"command": "say", "text": "  "}).get_json()
+        self.assertFalse(r["ok"])
+
+    def test_ai_ask_registra_no_historico(self):
+        self.client.post("/api/command", json={"command": "ai_ask", "text": "tudo bem?"})
+        kinds = [e["kind"] for e in self.app.history.get_recent(5)]
+        self.assertIn("ask", kinds)
+
+    def test_pagina_do_chat_lista_mensagens(self):
+        html = self.client.get("/chat").get_data(as_text=True)
+        self.assertIn("mensagem de teste", html)
