@@ -1,0 +1,18 @@
+# --- IA / provedores ---
+requests            # chamadas HTTP para APInex (e OpenAI/Gemini/Anthropic se quiser)
+python-dotenv       # carrega as chaves do arquivo .env
+
+# SDKs oficiais: opcionais (o robo fala HTTP direto, sem depender de versao de SDK)
+# openai
+# google-generativeai
+# anthropic
+
+# --- painel web / integracoes ---
+flask               # painel web (/admin, /chat)
+websockets          # Streamer.bot / OBS
+
+# --- voz e som ---
+gTTS                # voz do robo (TTS)
+pygame              # tocar os audios e efeitos sonoros
+SpeechRecognition   # comandos de voz do streamer
+pyaudio             # microfone (no Linux precisa de: sudo apt install portaudio19-dev)

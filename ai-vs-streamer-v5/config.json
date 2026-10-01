@@ -1,0 +1,114 @@
+{
+    "voting_interval": 600,
+    "chaos_interval": 60,
+    "provider": "apinex",
+    "fallback_provider": "offline",
+    "api_key_env": "APINEX_API_KEY",
+    "model": "free/gpt-6-luna",
+    "ai": {
+        "system_prompt_file": "prompts/default.txt",
+        "history_turns": 8,
+        "temperature": 0.85,
+        "max_tokens": 220,
+        "timeout": 30,
+        "max_retries": 3,
+        "reasoning_effort": "low",
+        "reply_enabled": true,
+        "reply_mode": "mentions",
+        "bot_names": [
+            "robô",
+            "robo",
+            "bot",
+            "ia"
+        ],
+        "reply_cooldown": 6,
+        "responses_per_minute": 4,
+        "max_reply_chars": 240,
+        "memory_file": "data/memories.json",
+        "log_chat": true
+    },
+    "providers": {
+        "apinex": {
+            "base_url": "https://api.apinex.bond/v1",
+            "model": "free/gpt-6-luna",
+            "max_retries": 3,
+            "timeout": 30,
+            "reasoning_effort": "low",
+            "models_gratuitos": [
+                "free/gpt-6-luna",
+                "free/gemini-3.8-flash",
+                "free/deepseek-v4.1-flash",
+                "free/glm-5.3-flash",
+                "free/kimi-k3",
+                "free/minimax-m3.1"
+            ]
+        },
+        "openai": {
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "model": "gpt-4o-mini"
+        },
+        "gemini": {
+            "api_key_env": "GEMINI_API_KEY",
+            "model": "gemini-2.0-flash"
+        },
+        "anthropic": {
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "model": "claude-3-5-haiku-latest",
+            "max_tokens": 300
+        },
+        "offline": {},
+        "omnirouter": {
+            "base_url": "http://localhost:20128/v1",
+            "api_key_env": "OMNIROUTER_API_KEY",
+            "model": "oc/deepseek-v4-flash-free",
+            "auto_detect": true,
+            "allow_keyless": true,
+            "probe_timeout": 1,
+            "timeout": 60,
+            "max_retries": 2,
+            "modelos_gratuitos": [
+                "oc/deepseek-v4-flash-free",
+                "oc/big-pickle",
+                "auto/cheap"
+            ]
+        }
+    },
+    "twitch": {
+        "enabled": true,
+        "channel": "Guigui123wa",
+        "oauth": "env:TWITCH_OAUTH",
+        "oauth_env": "TWITCH_OAUTH",
+        "nickname": "",
+        "send_per_minute": 18,
+        "send_interval": 1.5,
+        "startup_message": "Robô online! Digite !help para ver os comandos."
+    },
+    "youtube": {
+        "enabled": false,
+        "video_id": "SEU_VIDEO_ID"
+    },
+    "voice": {
+        "enabled": true,
+        "trigger": "ei robô",
+        "language": "pt-BR"
+    },
+    "tts": {
+        "enabled": true,
+        "engine": "gtts",
+        "language": "pt",
+        "speed": 1.0
+    },
+    "sound": {
+        "enabled": true,
+        "chat": "sounds/ding.wav",
+        "troll": "sounds/sinister.wav"
+    },
+    "achievement_sounds": true,
+    "chaos_mode": false,
+    "streamer_offline_mode": false,
+    "web": {
+        "host": "localhost",
+        "port": 8080
+    }
+}
