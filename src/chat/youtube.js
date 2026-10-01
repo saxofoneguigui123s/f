@@ -22,25 +22,32 @@ export class YouTubeChat extends EventEmitter {
       this.emit('error', new Error('YOUTUBE_VIDEO_ID não configurado'));
       return;
     }
-    let YoutubeChat;
     try {
       const mod = await import('youtube-chat');
-      YoutubeChat = mod.YoutubeChat || mod.default?.YoutubeChat || mod.default || mod.LiveChat;
+      // v2 exporta "LiveChat"; v1 exportava "YoutubeChat"
+      const Klass =
+        mod.LiveChat ||
+        mod.YoutubeChat ||
+        mod.default?.LiveChat ||
+        mod.default?.YoutubeChat ||
+        (typeof mod.default === 'function' ? mod.default : null);
+      if (!Klass) {
+        log('erro', 'não encontrei a classe LiveChat no pacote youtube-chat');
+        this.emit('error', new Error('classe do youtube-chat não encontrada'));
+        return;
+      }
+      try {
+        // API v2: new LiveChat({ liveId })
+        this.chat = new Klass({ liveId: this.videoId });
+      } catch {
+        // API v1: new LiveChat(videoId, options)
+        this.chat = new Klass(this.videoId, {});
+      }
     } catch (err) {
       log('erro', 'pacote "youtube-chat" não instalado — rode: npm install youtube-chat');
       this.emit('error', new Error('youtube-chat ausente'));
       return;
     }
-    if (!YoutubeChat) {
-      log('erro', 'não encontrei a classe YoutubeChat no pacote instalado');
-      return;
-    }
-
-    const opts = {};
-    const apiKey = config.get('chat.youtube.apiKey');
-    if (apiKey) opts.apiKey = apiKey;
-
-    this.chat = new YoutubeChat(this.videoId, opts);
 
     this.chat.on('start', () => {
       this.running = true;
@@ -66,7 +73,11 @@ export class YouTubeChat extends EventEmitter {
         .trim();
       if (!text) return;
       let bits = 0;
-      if (item.isSuperChat && item.superChat) bits = Math.min(1000, Math.round((item.superChat.amount || 0) / 100));
+      const superchat = item.superchat || item.superChat;
+      if (superchat?.amount) {
+        const value = Number(String(superchat.amount).replace(/[^\d,.\-]/g, '').replace(',', '.'));
+        if (!Number.isNaN(value)) bits = Math.min(1000, Math.round(value)); // Super Chat vale voto extra (1 ponto por unidade)
+      }
       this.emit('message', {
         platform: 'youtube',
         id: item.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

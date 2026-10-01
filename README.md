@@ -98,6 +98,8 @@ SIM=1                             # chat simulado pra testar
 
 > **Sem token da Twitch** o robô lê o chat anonimamente (o padrão pra bots de leitura). Para ele **escrever** no chat, gere um *Bot Chat Token* em [twitchtokengenerator.com](https://twitchtokengenerator.com) com os escopos `chat:read chat:edit`.
 
+**YouTube (opcional):** preencha `YOUTUBE_VIDEO_ID` com o ID do vídeo/live (o pacote `youtube-chat` já vem instalado). Basta o ID — para escrever no chat do YouTube, use o painel do YouTube Studio (a API pública não permite enviar mensagens). Os dois chats podem rodar juntos: o robô junta tudo numa leitura só.
+
 ---
 
 ## 🧠 Comandos do chat
