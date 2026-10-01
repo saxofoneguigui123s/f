@@ -61,12 +61,17 @@
         "omnirouter": {
             "base_url": "http://localhost:20128/v1",
             "api_key_env": "OMNIROUTER_API_KEY",
-            "model": "auto",
+            "model": "oc/deepseek-v4-flash-free",
             "auto_detect": true,
             "allow_keyless": true,
             "probe_timeout": 1,
             "timeout": 60,
-            "max_retries": 2
+            "max_retries": 2,
+            "modelos_gratuitos": [
+                "oc/deepseek-v4-flash-free",
+                "oc/big-pickle",
+                "auto/cheap"
+            ]
         }
     },
     "twitch": {

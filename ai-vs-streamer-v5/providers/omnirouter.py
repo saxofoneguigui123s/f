@@ -6,7 +6,8 @@ Existem TRES servicos com esse nome, todos compativeis com a API da OpenAI
 1. OmniRoute (open-source, roda na sua maquina)
        base_url: http://localhost:20128/v1
        key:      qualquer coisa (ou nada, se REQUIRE_API_KEY=false)
-       modelo:   "auto"  (o gateway escolhe o provedor sozinho)
+       modelo:   "oc/deepseek-v4-flash-free"  (OpenCode Free: gratis e keyless)
+                 ou "auto" para o gateway escolher sozinho
 
 2. omnirouter.li (SaaS)
        base_url: https://omnirouter.li/v1
@@ -23,7 +24,7 @@ Configuracao no config.json:
         "omnirouter": {
             "base_url": "http://localhost:20128/v1",   // opcional: sem isso, ele detecta
             "api_key_env": "OMNIROUTER_API_KEY",
-            "model": "auto",
+            "model": "oc/deepseek-v4-flash-free",   // rota gratuita (OpenCode Free)
             "auto_detect": true,     // procura o gateway local antes de usar a nuvem
             "allow_keyless": true,   // aceita gateway local sem key
             "timeout": 60
@@ -53,14 +54,17 @@ class OmniRouterProvider(OpenAICompatProvider):
     label = "OmniRouter"
     default_base_url = "http://localhost:20128/v1"
     default_env = ("OMNIROUTER_API_KEY", "OMNI_API_KEY", "OMNIROUTE_API_KEY", "OMNI_KEY")
-    default_model = "auto"
+    # oc/ = OpenCode Free (rota gratuita e keyless do OmniRoute). Este modelo nao
+    # gasta credito nenhum e funciona em instalacao nova, sem configurar provider.
+    default_model = "oc/deepseek-v4-flash-free"
     default_models = (
-        "auto",
+        "oc/deepseek-v4-flash-free",   # OpenCode Free - DeepSeek V4 Flash (gratis)
+        "oc/big-pickle",
+        "auto",                        # o gateway escolhe sozinho
+        "auto/cheap",
         "cc/claude-opus-4-6",
-        "cc/claude-sonnet-4-20250514",
         "gg/gemini-2.5-pro",
         "if/kimi-k2-thinking",
-        "openai/gpt-4o-mini",
     )
     # gateways que o robo conhece (usados na deteccao automatica, em ordem)
     candidates = (
@@ -194,6 +198,38 @@ class OmniRouterProvider(OpenAICompatProvider):
             "keyless": not bool(self.api_key) and self.available(),
         })
         return info
+
+    # ------------------------------------------------------------------
+    # validacao do modelo (o gateway tem catalogo em /models)
+    # ------------------------------------------------------------------
+    def validate_model(self, model=None):
+        """Confere se o modelo configurado existe no catalogo do gateway.
+
+        Devolve {"ok": bool|None, "model": str, "catalog_size": int,
+        "suggestions": [...], "examples": [...]}. ok=None quando o gateway nao
+        expoe /models (nao da para saber).
+        """
+        model = (model or self.model or "").strip()
+        catalogo = self.list_models(fallback=False)   # so o catalogo do gateway
+        if not catalogo:
+            return {"ok": None, "model": model, "catalog_size": 0,
+                    "suggestions": [], "examples": []}
+
+        if model in catalogo:
+            return {"ok": True, "model": model, "catalog_size": len(catalogo),
+                    "suggestions": [], "examples": []}
+
+        import difflib
+
+        sugestoes = difflib.get_close_matches(model, catalogo, n=3, cutoff=0.55)
+        if not sugestoes:
+            base = model.split("/")[-1]
+            sugestoes = [item for item in catalogo if base and base in item][:3]
+        if not sugestoes:
+            sugestoes = [item for item in catalogo if str(item).startswith("oc/")][:3]
+        exemplos = [item for item in catalogo if str(item).startswith("oc/")][:5] or catalogo[:5]
+        return {"ok": False, "model": model, "catalog_size": len(catalogo),
+                "suggestions": sugestoes, "examples": exemplos}
 
     def explain(self):
         """Texto curto de como o provedor esta configurado (usado no --check)."""

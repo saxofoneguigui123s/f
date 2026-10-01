@@ -41,10 +41,13 @@ class RegistryTests(unittest.TestCase):
                                    "providers": {"omnirouter": {"auto_detect": False}}})
         self.assertIsInstance(provider, OmniRouterProvider)
 
-    def test_modelo_padrao_e_auto(self):
+    def test_auto_continua_sendo_uma_opcao(self):
+        """O gateway ainda aceita "auto"; o padrao agora e a rota gratuita."""
         provider = build_provider({"provider": "omnirouter",
-                                   "providers": {"omnirouter": {"auto_detect": False}}})
+                                   "providers": {"omnirouter": {"auto_detect": False,
+                                                                "model": "auto"}}})
         self.assertEqual(provider.model, "auto")
+        self.assertIn("auto", OmniRouterProvider.default_models)
 
     def test_mesmo_provedor_atende_gateway_local_e_saas(self):
         """Os tres servicos falam OpenAI: muda so a base_url."""
@@ -185,13 +188,13 @@ class ChatTests(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("OMNIROUTER_API_KEY", None)
 
-    def test_chat_usa_base_url_e_modelo_auto(self):
+    def test_chat_usa_base_url_e_o_modelo_configurado(self):
         self.transport.responses.append((200, {}, json_body(completion("Oi, chat!", model="auto"))))
         result = self.provider.chat([{"role": "user", "content": "oi"}])
         self.assertEqual(result.text, "Oi, chat!")
         call = self.transport.last_call
         self.assertEqual(call["url"], "http://localhost:20128/v1/chat/completions")
-        self.assertEqual(call["payload"]["model"], "auto")
+        self.assertEqual(call["payload"]["model"], "oc/deepseek-v4-flash-free")
         self.assertEqual(call["headers"]["Authorization"], "Bearer sk-omnirouter-teste")
 
     def test_modelo_de_rota_especifica(self):
@@ -317,7 +320,7 @@ class TrocandoDeProvedorTests(unittest.TestCase):
         config = json.loads((raiz / "config.json").read_text(encoding="utf-8"))
         config["provider"] = "omnirouter"
         provider = build_provider(config)
-        self.assertEqual(provider.model, "auto")
+        self.assertEqual(provider.model, "oc/deepseek-v4-flash-free")
         self.assertIn("OMNIROUTER_API_KEY", provider.default_env)
 
 
@@ -337,3 +340,81 @@ class StatusTests(unittest.TestCase):
                            os.path.join(tempfile.mkdtemp(), "m.json")}},
                           provider=provider, logger=lambda *a: None)
         self.assertEqual(engine.status()["endpoint"], LOCAL)
+
+
+class ModeloTests(unittest.TestCase):
+    """O modelo padrao do OmniRouter e a rota gratuita oc/deepseek-v4-flash-free."""
+
+    def test_modelo_padrao_e_a_rota_gratuita(self):
+        self.assertEqual(OmniRouterProvider.default_model, "oc/deepseek-v4-flash-free")
+        provider = OmniRouterProvider({"auto_detect": False, "base_url": LOCAL})
+        self.assertEqual(provider.model, "oc/deepseek-v4-flash-free")
+
+    def test_config_do_projeto_usa_esse_modelo(self):
+        import json
+        import pathlib
+
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        config = json.loads((raiz / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual(config["providers"]["omnirouter"]["model"],
+                         "oc/deepseek-v4-flash-free")
+
+    def test_pedido_leva_o_id_do_modelo_para_o_gateway(self):
+        provider, transport = build(config={"base_url": LOCAL})
+        transport.responses.append((200, {}, json_body(completion())))
+        provider.chat([{"role": "user", "content": "oi"}])
+        self.assertEqual(transport.last_call["payload"]["model"], "oc/deepseek-v4-flash-free")
+
+    def test_aceita_rota_oc_na_lista_de_modelos(self):
+        provider, transport = build(config={"base_url": LOCAL})
+        transport.responses.append((200, {}, json_body({"data": [
+            {"id": "oc/deepseek-v4-flash-free"}, {"id": "auto"}]})))
+        self.assertIn("oc/deepseek-v4-flash-free", provider.list_models())
+
+
+class ValidateModelTests(unittest.TestCase):
+    """Validacao contra o catalogo do gateway (o que o --check mostra)."""
+
+    def test_modelo_existe_no_catalogo(self):
+        provider, transport = build(config={"base_url": LOCAL})
+        transport.responses.append((200, {}, json_body({"data": [
+            {"id": "oc/deepseek-v4-flash-free"}, {"id": "auto"}]})))
+        resultado = provider.validate_model()
+        self.assertTrue(resultado["ok"])
+        self.assertEqual(resultado["catalog_size"], 2)
+
+    def test_modelo_com_erro_de_digitacao_sugere_parecidos(self):
+        provider, transport = build(config={"base_url": LOCAL, "model": ""})
+        transport.responses.append((200, {}, json_body({"data": [
+            {"id": "oc/deepseek-v4-flash-free"}, {"id": "oc/big-pickle"}, {"id": "auto"}]})))
+        resultado = provider.validate_model("oc/deepseek-v4-flash")
+        self.assertFalse(resultado["ok"])
+        self.assertIn("oc/deepseek-v4-flash-free", resultado["suggestions"])
+        self.assertIn("oc/big-pickle", resultado["examples"])
+
+    def test_modelo_desconhecido_mostra_exemplos_gratuitos(self):
+        provider, transport = build(config={"base_url": LOCAL, "model": ""})
+        transport.responses.append((200, {}, json_body({"data": [
+            {"id": "oc/deepseek-v4-flash-free"}, {"id": "zz/coisa"}]})))
+        resultado = provider.validate_model("modelo/inexistente")
+        self.assertFalse(resultado["ok"])
+        self.assertTrue(resultado["examples"])
+        self.assertTrue(all(e.startswith("oc/") for e in resultado["examples"]))
+
+    def test_gateway_sem_catalogo_nao_afirma_nem_nega(self):
+        provider, transport = build(config={"base_url": LOCAL})
+        transport.responses.append((500, {}, json_body({"error": {"message": "sem catalogo"}})))
+        self.assertIsNone(provider.validate_model()["ok"])
+
+    def test_check_do_projeto_avisa_quando_o_modelo_nao_existe(self):
+        """--check precisa apontar o problema e sugerir o id certo."""
+        import json
+        import pathlib
+
+        from tests.fake_omniroute import CATALOG
+
+        self.assertIn("oc/deepseek-v4-flash-free", CATALOG)
+        raiz = pathlib.Path(__file__).resolve().parent.parent
+        config = json.loads((raiz / "config.json").read_text(encoding="utf-8"))
+        prove = config["providers"]["omnirouter"]["model"]
+        self.assertEqual(prove, "oc/deepseek-v4-flash-free")

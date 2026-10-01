@@ -479,6 +479,26 @@ def check_ai(config, logger=print):
 
     if hasattr(provider, "explain"):
         logger(f"  endpoint: {provider.explain()}")
+
+    # catalogo do gateway (OmniRoute): confere o modelo ANTES de gastar uma chamada
+    if hasattr(provider, "validate_model"):
+        resultado = provider.validate_model()
+        if resultado["ok"] is True:
+            logger(f"Modelo '{resultado['model']}' encontrado no catalogo "
+                   f"({resultado['catalog_size']} modelos).")
+        elif resultado["ok"] is False:
+            logger(f"  [FALHA] o gateway nao conhece o modelo '{resultado['model']}' "
+                   f"(catalogo com {resultado['catalog_size']} modelos).")
+            if resultado["suggestions"]:
+                logger(f"  parecidos: {', '.join(resultado['suggestions'])}")
+            if resultado["examples"]:
+                logger(f"  exemplos disponiveis: {', '.join(resultado['examples'])}")
+            logger("  troque com !modelo <id> no chat ou em "
+                   f"providers.{provider.name}.model no config.json")
+            return False        # nem tenta a chamada: o modelo nem existe
+        else:
+            logger("  (o gateway nao expoe /models: nao deu para conferir o modelo)")
+
     logger(f"Chamando {provider.name}/{getattr(provider, 'model', '?')}...")
     try:
         result = provider.chat([{"role": "user", "content": "Responda apenas: ok"}])
@@ -499,6 +519,7 @@ def check_ai(config, logger=print):
         free = provider.free_models() if ok else []
         if free:
             logger(f"Modelos gratuitos: {', '.join(free[:8])}...")
+
     return ok
 
 

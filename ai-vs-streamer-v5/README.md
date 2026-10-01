@@ -57,7 +57,7 @@ Um provedor cobre os três serviços com esse nome (todos falam a API da OpenAI)
 
 | serviço | base URL | key | modelo |
 |---|---|---|---|
-| **OmniRoute** (open-source, auto-hospedado) | `http://localhost:20128/v1` | qualquer/nenhuma | `auto` |
+| **OmniRoute** (open-source, auto-hospedado) | `http://localhost:20128/v1` | qualquer/nenhuma | `oc/deepseek-v4-flash-free` |
 | **omnirouter.li** (SaaS) | `https://omnirouter.li/v1` | `sk_live_...` | o que o painel oferece |
 | **omnirouter.cc** (SaaS) | `https://omnirouter-api.cc/v1` | `Bearer $OMNI_KEY` | idem |
 
@@ -68,7 +68,7 @@ Um provedor cobre os três serviços com esse nome (todos falam a API da OpenAI)
   "omnirouter": {
     "base_url": "http://localhost:20128/v1",  // omita para detectar sozinho
     "api_key_env": "OMNIROUTER_API_KEY",      // aceita OMNI_API_KEY, OMNIROUTE_API_KEY, OMNI_KEY
-    "model": "auto",
+    "model": "oc/deepseek-v4-flash-free",     // padrao: rota gratis (OpenCode Free)
     "auto_detect": true,     // procura o gateway local antes de usar a nuvem
     "allow_keyless": true,   // gateway local costuma rodar sem key (REQUIRE_API_KEY=false)
     "timeout": 60
@@ -81,8 +81,13 @@ Um provedor cobre os três serviços com esse nome (todos falam a API da OpenAI)
   omnirouter.li → omnirouter.cc. Desligue com `"auto_detect": false`.
 - **Sem chave só no local:** `allow_keyless` vale apenas para endereços da própria
   máquina/rede (localhost, 127.0.0.1, 192.168.x, 10.x). Serviço na nuvem **exige** key.
-- Modelos: `auto` deixa o gateway escolher; também dá para fixar a rota, ex.
-  `cc/claude-opus-4-6`, `gg/gemini-2.5-pro`, `if/kimi-k2-thinking` — use `!modelo <id>`.
+- **Modelo padrão:** `oc/deepseek-v4-flash-free` — `oc/` é a rota **OpenCode Free** do
+  OmniRoute: DeepSeek V4 Flash gratuito e sem chave, que funciona em instalação nova.
+  Trocar na hora: `!modelo oc/big-pickle`, `!modelo auto`, `!modelo cc/claude-opus-4-6`,
+  `!modelo gg/gemini-2.5-pro`, `!modelo if/kimi-k2-thinking`.
+- **O `--check` confere o modelo no catálogo do gateway** (`GET /models`): se o id não
+  existir, ele mostra os parecidos e os gratuitos disponíveis em vez de deixar você
+  descobrir no meio da live.
 - Erros vêm com dica: 401 (key do painel), 402 (créditos), 429 (reduza
   `ai.responses_per_minute`), e se for o gateway local fora do ar o robô avisa.
 
@@ -132,9 +137,10 @@ Comandos completos no chat: `!help`.
 | `tts_engine.py`             | voz do robô (gTTS, com pygame ou player do sistema)         |
 | `web_panel.py`              | painel Flask (`/admin`, `/chat`, `/api/...`)                |
 | `achievements.py`, `chat_levels.py`, `ranking.py` | badges, XP e ranking          |
-| `tests/`                    | 163 testes rodando sem internet (IA + Twitch falso)          |
+| `tests/`                    | 172 testes rodando sem internet (IA + Twitch falso)          |
 | `tests/fake_twitch.py`      | servidor IRC de mentira para testar o chat                   |
 | `tests/fake_apinex.py`      | APInex de mentira: dá para rodar o robô inteiro sem gastar saldo |
+| `tests/fake_omniroute.py`   | OmniRoute de mentira (catálogo com `oc/deepseek-v4-flash-free`)  |
 
 ## Teste em 60 segundos (o robô tem que provar que está vivo)
 
@@ -221,6 +227,7 @@ com respostas, saldo, busca e contagem de tokens, sem gastar 1 centavo:
 
 ```bash
 python tests/fake_apinex.py 8099      # em outro terminal
+python tests/fake_omniroute.py 20128  # ...ou o gateway OmniRoute de mentira
 # config.json -> "providers": {"apinex": {"base_url": "http://127.0.0.1:8099/v1"}},
 #                "api_key": "sk-apx_teste"
 python main.py --check

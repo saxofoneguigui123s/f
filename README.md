@@ -12,11 +12,15 @@ tem **provedor de IA APInex** integrado.
 - Fala as respostas no TTS, guarda memórias do stream (`!lembra`), dá XP, badges e
   ranking de trolls, e tem painel web (`/admin`, `/chat`).
 
-## Provedor de IA: APInex
+## Provedores de IA: APInex (padrão) e OmniRouter
 
 Padrão no `config.json` (`"provider": "apinex"`, base `https://api.apinex.bond/v1`),
 com fallback automático para `offline` se faltar chave/rede. Também dá para usar
 `openai`, `gemini`, `anthropic` ou `offline`.
+
+O **OmniRouter/OmniRoute** está integrado: com `"provider": "omnirouter"` o robô usa
+`oc/deepseek-v4-flash-free` (OpenCode Free — grátis e keyless) no gateway local
+`http://localhost:20128/v1`, ou nos serviços `omnirouter.li` / `omnirouter.cc` com key.
 
 ```bash
 cd ai-vs-streamer-v5

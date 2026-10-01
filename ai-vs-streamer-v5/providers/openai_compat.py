@@ -160,11 +160,17 @@ class OpenAICompatProvider(BaseProvider):
         )
 
     # -- catalogo --------------------------------------------------------
-    def list_models(self):
+    def list_models(self, fallback=True):
+        """Lista os modelos do provedor.
+
+        `fallback=True` devolve a lista embutida quando o provedor nao expoe
+        /models (uso geral). `fallback=False` devolve [] nesse caso, para quem
+        precisa saber se o catalogo veio MESMO do servidor (validacao).
+        """
         try:
             data = self.client.json_request("GET", "models")
         except ProviderError:
-            return list(self.default_models)
+            return list(self.default_models) if fallback else []
         items = data.get("data") if isinstance(data, dict) else data
         if isinstance(items, dict):
             items = items.get("models") or []
@@ -176,7 +182,9 @@ class OpenAICompatProvider(BaseProvider):
                 model_id = str(item)
             if model_id:
                 ids.append(model_id)
-        return ids or list(self.default_models)
+        if ids:
+            return ids
+        return list(self.default_models) if fallback else []
 
     def close(self):
         session = getattr(self.client, "session", None)
