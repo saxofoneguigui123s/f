@@ -293,7 +293,7 @@ class AIvsStreamer:
         def worker():
             deadline = time.time() + 20
             while time.time() < deadline and self.running:
-                if self.chat.can_send:
+                if getattr(self.chat, "can_send", True):
                     if self.chat.send_message(texto):
                         self.history.add("BOT", texto, "startup")
                     return

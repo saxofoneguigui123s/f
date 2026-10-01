@@ -80,6 +80,11 @@ class TerminalChat:
         sys.stdout.flush()
         return True
 
+    @property
+    def can_send(self):
+        """No terminal o robo sempre consegue 'falar'."""
+        return True
+
     def status(self):
         return {
             "twitch": {"enabled": False, "simulated": True},

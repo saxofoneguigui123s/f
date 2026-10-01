@@ -139,3 +139,26 @@ class LiveFlowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SimulateStartupTests(unittest.TestCase):
+    """No modo --simulate o TerminalChat tambem tem que aceitar as boas-vindas."""
+
+    def test_boas_vindas_no_modo_simulado(self):
+        config = load_config(os.path.join(BASE_DIR, "config.json"))
+        config["provider"] = "offline"
+        config["twitch"] = {"enabled": False,
+                            "startup_message": "Robo online! Digite !help."}
+        config["tts"] = {"enabled": False}
+        config["voice"] = {"enabled": False}
+        config["ai"]["log_chat"] = False
+        config["web"] = {"enabled": False}
+        app = AIvsStreamer(config, simulate=True, use_web=False, logger=lambda *a: None)
+        app.chat.logger = lambda *a: None
+        app.start()
+        try:
+            self.assertTrue(wait_for(lambda: any("Robo online" in m for m in app.chat.last_sent)),
+                            f"boas-vindas nao apareceram: {app.chat.last_sent}")
+            self.assertTrue(app.chat.can_send)
+        finally:
+            app.stop()
