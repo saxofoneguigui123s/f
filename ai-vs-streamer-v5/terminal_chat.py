@@ -81,4 +81,8 @@ class TerminalChat:
         return True
 
     def status(self):
-        return {"twitch": {"enabled": False, "simulated": True}, "queued": self.queue.qsize()}
+        return {
+            "twitch": {"enabled": False, "simulated": True},
+            "can_send": True,   # no terminal o robo sempre "fala"
+            "queued": self.queue.qsize(),
+        }
