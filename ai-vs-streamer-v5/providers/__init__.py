@@ -42,10 +42,12 @@ from .openai_provider import OpenAIProvider
 from .gemini_provider import GeminiProvider
 from .anthropic_provider import AnthropicProvider
 from .offline_provider import OfflineProvider
+from .omnirouter import OmniRouterProvider
 
 # Ordem importa apenas para a listagem na CLI/README.
 PROVIDERS = {
     APInexProvider.name: APInexProvider,
+    OmniRouterProvider.name: OmniRouterProvider,
     OpenAIProvider.name: OpenAIProvider,
     GeminiProvider.name: GeminiProvider,
     AnthropicProvider.name: AnthropicProvider,
@@ -58,6 +60,13 @@ ALIASES = {
     "apx": "apinex",
     "api-nex": "apinex",
     "apinex.bond": "apinex",
+    # OmniRouter / OmniRoute (gateway local ou na nuvem)
+    "omniroute": "omnirouter",
+    "omni-router": "omnirouter",
+    "omni": "omnirouter",
+    "omnirouter.li": "omnirouter",
+    "omnirouter.cc": "omnirouter",
+    "omni-router-api": "omnirouter",
     "openai-compatible": "openai",
     "open-ai": "openai",
     "gpt": "openai",
@@ -73,6 +82,7 @@ ALIASES = {
 KNOWN_ENV_NAMES = (
     "APINEX_API_KEY", "APINEX_KEY", "TWITCH_OAUTH", "OPENAI_API_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY",
+    "OMNIROUTER_API_KEY", "OMNIROUTE_API_KEY", "OMNI_API_KEY", "OMNI_KEY",
 )
 
 # chave -> {"file": nome do arquivo, "value": valor que estava la}
@@ -255,15 +265,19 @@ def provider_config(config, name=None):
     name = selected
     block = dict((config.get("providers") or {}).get(name) or {})
 
-    # atalhos no topo do config.json valem so para o provedor principal
-    # (assim trocar de provedor nao herda o modelo do APInex, por exemplo)
-    # e nunca para o 'offline', que nao usa modelo nem chave.
+    # Os atalhos do topo do config.json valem para o provedor principal, mas o
+    # BLOCO ESPECIFICO vence: assim trocar "provider" para outro servico nao
+    # herda o modelo/key do anterior (ex.: "free/gpt-6-luna" do APInex indo
+    # parar no OmniRouter, que espera "auto"). O "offline" nunca herda nada.
     if selected != "offline" and selected == normalize_name(config.get("provider") or "apinex"):
         for key in ("model", "api_key", "api_key_env", "base_url", "temperature", "max_tokens",
                     "timeout", "max_retries", "reasoning_effort"):
             value = config.get(key)
-            if value not in (None, ""):
-                block[key] = value
+            if value in (None, ""):
+                continue
+            if key in block and block[key] not in (None, ""):
+                continue        # o bloco do provedor manda
+            block[key] = value
 
     # config["ai"] e usado como padrao quando o bloco nao define
     ai_block = config.get("ai") or {}
@@ -315,6 +329,7 @@ __all__ = [
     "InvalidAPIKey",
     "MissingAPIKey",
     "OfflineProvider",
+    "OmniRouterProvider",
     "OpenAIProvider",
     "PROVIDERS",
     "PROVIDER_NAMES",

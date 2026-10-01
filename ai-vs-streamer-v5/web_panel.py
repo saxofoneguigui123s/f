@@ -80,6 +80,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <h2>IA</h2>
       <div class="big" id="provider">-</div>
       <div class="row"><span>Modelo</span><span id="model">-</span></div>
+      <div class="row"><span>Endpoint</span><span id="endpoint">-</span></div>
       <div class="row"><span>Estado</span><span id="ai-state">-</span></div>
       <div class="row"><span>Reserva</span><span id="fallback">-</span></div>
       <div class="row"><span>Erros / respostas</span><span id="stats">-</span></div>
@@ -134,6 +135,7 @@ async function refresh() {
 
     $('provider').textContent = ai.provider + (ai.model ? ' / ' + ai.model : '');
     $('model').textContent = ai.model || '-';
+    $('endpoint').textContent = ai.endpoint || '-';
     pill($('ai-state'), ai.available, ai.available ? 'ok' : 'sem chave');
     $('fallback').textContent = ai.fallback || '-';
     $('stats').textContent = ai.stats.errors + ' / ' + ai.stats.requests;

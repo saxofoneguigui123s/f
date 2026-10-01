@@ -424,6 +424,7 @@ class AIEngine:
         return {
             "provider": provider_name,
             "model": getattr(self.provider, "model", ""),
+            "endpoint": getattr(self.provider, "base_url", "") or "",
             "available": self.provider.available() if self.provider else False,
             "fallback": getattr(self.fallback, "name", ""),
             "mode": self.mode,

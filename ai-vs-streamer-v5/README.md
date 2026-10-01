@@ -37,6 +37,7 @@ API: `/api/status`, `/api/ai`.
 | nome        | o que é                                   | key (variável de ambiente)     |
 |-------------|-------------------------------------------|--------------------------------|
 | `apinex`    | **padrão** — gateway com vários modelos   | `APINEX_API_KEY` (`sk-apx...`) |
+| `omnirouter`| gateway local (OmniRoute) ou na nuvem     | `OMNIROUTER_API_KEY` (opcional no local) |
 | `openai`    | API oficial da OpenAI                     | `OPENAI_API_KEY`               |
 | `gemini`    | Google Gemini                             | `GEMINI_API_KEY`               |
 | `anthropic` | Claude                                    | `ANTHROPIC_API_KEY`            |
@@ -44,6 +45,46 @@ API: `/api/status`, `/api/ai`.
 
 Trocar de provedor: mude `"provider"` no `config.json` **ou** use no chat o comando
 `!provedor openai`. Trocar de modelo na hora: `!modelo free/gemini-3.8-flash`.
+Para testar qualquer provedor sem editar nada: `python main.py --check --provider omnirouter`.
+
+> O bloco `providers.<nome>` manda mais que os atalhos do topo do `config.json`
+> (`model`, `api_key_env`, `base_url`). É assim que trocar `"provider"` não faz o
+> OmniRouter herdar o modelo do APInex (`free/gpt-6-luna`) em vez de `auto`.
+
+### OmniRouter / OmniRoute
+
+Um provedor cobre os três serviços com esse nome (todos falam a API da OpenAI):
+
+| serviço | base URL | key | modelo |
+|---|---|---|---|
+| **OmniRoute** (open-source, auto-hospedado) | `http://localhost:20128/v1` | qualquer/nenhuma | `auto` |
+| **omnirouter.li** (SaaS) | `https://omnirouter.li/v1` | `sk_live_...` | o que o painel oferece |
+| **omnirouter.cc** (SaaS) | `https://omnirouter-api.cc/v1` | `Bearer $OMNI_KEY` | idem |
+
+```jsonc
+// config.json
+"provider": "omnirouter",
+"providers": {
+  "omnirouter": {
+    "base_url": "http://localhost:20128/v1",  // omita para detectar sozinho
+    "api_key_env": "OMNIROUTER_API_KEY",      // aceita OMNI_API_KEY, OMNIROUTE_API_KEY, OMNI_KEY
+    "model": "auto",
+    "auto_detect": true,     // procura o gateway local antes de usar a nuvem
+    "allow_keyless": true,   // gateway local costuma rodar sem key (REQUIRE_API_KEY=false)
+    "timeout": 60
+  }
+}
+```
+
+- **Detecção automática:** sem `base_url`, o robô sonda `localhost:20128` e, se
+  responder (mesmo 401 = gateway no ar pedindo key), usa esse endereço; senão cai para
+  omnirouter.li → omnirouter.cc. Desligue com `"auto_detect": false`.
+- **Sem chave só no local:** `allow_keyless` vale apenas para endereços da própria
+  máquina/rede (localhost, 127.0.0.1, 192.168.x, 10.x). Serviço na nuvem **exige** key.
+- Modelos: `auto` deixa o gateway escolher; também dá para fixar a rota, ex.
+  `cc/claude-opus-4-6`, `gg/gemini-2.5-pro`, `if/kimi-k2-thinking` — use `!modelo <id>`.
+- Erros vêm com dica: 401 (key do painel), 402 (créditos), 429 (reduza
+  `ai.responses_per_minute`), e se for o gateway local fora do ar o robô avisa.
 
 ### APInex em detalhes
 
@@ -82,7 +123,7 @@ Comandos completos no chat: `!help`.
 |-----------------------------|-------------------------------------------------------------|
 | `main.py`                   | loop principal + CLI (`--check`, `--simulate`, `--no-web`)  |
 | `ai_engine.py`              | prompt, memórias, histórico, limites e troca de provedor    |
-| `providers/`                | clientes de IA (`apinex.py`, `openai_*`, `gemini_*`, ...)   |
+| `providers/`                | clientes de IA (`apinex.py`, `omnirouter.py`, `openai_*`, `gemini_*`, ...) |
 | `providers/http_client.py`  | HTTP com retry/backoff, SSE e erros amigáveis               |
 | `chat_reader.py`            | Twitch IRC (TLS, reconexão) + fila de mensagens             |
 | `terminal_chat.py`          | chat simulado no terminal (para testar)                     |
@@ -91,7 +132,7 @@ Comandos completos no chat: `!help`.
 | `tts_engine.py`             | voz do robô (gTTS, com pygame ou player do sistema)         |
 | `web_panel.py`              | painel Flask (`/admin`, `/chat`, `/api/...`)                |
 | `achievements.py`, `chat_levels.py`, `ranking.py` | badges, XP e ranking          |
-| `tests/`                    | 125 testes rodando sem internet (IA + Twitch falso)          |
+| `tests/`                    | 163 testes rodando sem internet (IA + Twitch falso)          |
 | `tests/fake_twitch.py`      | servidor IRC de mentira para testar o chat                   |
 | `tests/fake_apinex.py`      | APInex de mentira: dá para rodar o robô inteiro sem gastar saldo |
 

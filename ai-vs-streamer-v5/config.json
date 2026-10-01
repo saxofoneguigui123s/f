@@ -57,7 +57,17 @@
             "model": "claude-3-5-haiku-latest",
             "max_tokens": 300
         },
-        "offline": {}
+        "offline": {},
+        "omnirouter": {
+            "base_url": "http://localhost:20128/v1",
+            "api_key_env": "OMNIROUTER_API_KEY",
+            "model": "auto",
+            "auto_detect": true,
+            "allow_keyless": true,
+            "probe_timeout": 1,
+            "timeout": 60,
+            "max_retries": 2
+        }
     },
     "twitch": {
         "enabled": true,

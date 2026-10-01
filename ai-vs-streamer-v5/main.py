@@ -384,6 +384,20 @@ class AIvsStreamer:
 # ----------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------
+def with_provider(config, name):
+    """Troca o provedor principal (usado pelo --provider).
+
+    Os atalhos do topo do config.json (model, api_key_env, base_url) sao do
+    provedor configurado; se continuassem valendo, o novo provedor herdaria o
+    modelo do outro (ex.: "free/gpt-6-luna" em vez de "auto" no OmniRouter).
+    """
+    novo = dict(config)
+    novo["provider"] = name
+    for chave in ("model", "api_key_env", "base_url", "reasoning_effort"):
+        novo.pop(chave, None)
+    return novo
+
+
 def describe_env(config, logger=print):
     """Mostra onde o robo procurou as chaves e se achou (sem revelar os segredos)."""
     import os
@@ -463,6 +477,8 @@ def check_ai(config, logger=print):
         logger(f"(o plano B configurado e '{fallback}', entao o chat nao fica mudo)")
         return False
 
+    if hasattr(provider, "explain"):
+        logger(f"  endpoint: {provider.explain()}")
     logger(f"Chamando {provider.name}/{getattr(provider, 'model', '?')}...")
     try:
         result = provider.chat([{"role": "user", "content": "Responda apenas: ok"}])
@@ -564,6 +580,9 @@ def parse_args(argv=None):
     parser.add_argument("--no-web", action="store_true", help="nao sobe o painel web")
     parser.add_argument("--say", metavar="TEXTO",
                         help="com --check, manda uma mensagem de teste no chat do Twitch")
+    parser.add_argument("--provider", metavar="NOME",
+                        help="com --check, testa outro provedor sem editar o config "
+                             "(apinex, omnirouter, openai, gemini, anthropic, offline)")
     return parser.parse_args(argv)
 
 
@@ -597,6 +616,9 @@ def main(argv=None):
     except (OSError, ValueError) as error:
         print(f"Nao consegui ler {args.config}: {error}")
         return 1
+
+    if args.provider:
+        config = with_provider(config, args.provider)
 
     if args.check:
         return run_check(config, say=args.say)
